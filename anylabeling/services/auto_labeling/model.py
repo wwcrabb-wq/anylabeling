@@ -59,6 +59,8 @@ class Model(QObject):
             config=self.config,
         )
         self.output_mode = self.Meta.default_output_mode
+        # Store config_file path if provided in config
+        self.config_file = self.config.get("config_file", None)
 
     def get_required_widgets(self):
         """
@@ -142,3 +144,36 @@ class Model(QObject):
         Set output mode
         """
         self.output_mode = mode
+
+    def set_config_param(self, key, value, persist=False):
+        """
+        Update a model's runtime config parameter.
+        
+        Args:
+            key: The config parameter key to update
+            value: The new value for the parameter
+            persist: If True, write the change back to the config file
+        """
+        # Update in-memory config
+        self.config[key] = value
+        
+        # Optionally persist to file
+        if persist and self.config_file and os.path.isfile(self.config_file):
+            try:
+                with open(self.config_file, "r") as f:
+                    file_config = yaml.safe_load(f)
+                file_config[key] = value
+                with open(self.config_file, "w") as f:
+                    yaml.dump(file_config, f)
+            except Exception as e:
+                logging.warning(f"Failed to persist config change: {e}")
+        
+        # Call hook for subclasses
+        self._on_config_param_changed(key, value)
+
+    def _on_config_param_changed(self, key, value):
+        """
+        Hook method called when a config parameter is changed.
+        Subclasses may override to react to config changes.
+        """
+        pass

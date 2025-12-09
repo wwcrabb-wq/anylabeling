@@ -107,6 +107,9 @@ class AutoLabelingWidget(QWidget):
         self.auto_labeling_mode = AutoLabelingMode.NONE
         self.auto_labeling_mode_changed.emit(self.auto_labeling_mode)
 
+        # Add threshold controls programmatically
+        self._setup_threshold_controls()
+
     def update_model_configs(self, model_list):
         """Update model list"""
         # Add models to combobox
@@ -216,6 +219,9 @@ class AutoLabelingWidget(QWidget):
             self.on_model_select_combobox_changed
         )
         self.model_select_combobox.setEnabled(True)
+        
+        # Update threshold controls from loaded model config
+        self._update_threshold_controls_from_config(model_config)
 
     def on_output_modes_changed(self, output_modes, default_output_mode):
         """Handle output modes changed"""
@@ -297,6 +303,113 @@ class AutoLabelingWidget(QWidget):
 
     def on_open(self):
         pass
+
+    def _setup_threshold_controls(self):
+        """Setup threshold control widgets programmatically"""
+        from PyQt5.QtWidgets import QLabel, QDoubleSpinBox, QHBoxLayout, QVBoxLayout
+        from PyQt5.QtCore import Qt
+        
+        # Create threshold controls container (if not already present)
+        if not hasattr(self, 'threshold_controls_widget'):
+            # Find the main layout (assuming it exists in the .ui file)
+            # We'll add the controls to the existing layout
+            layout = self.layout()
+            if layout is None:
+                return
+            
+            # Create container widget for threshold controls
+            from PyQt5.QtWidgets import QWidget
+            self.threshold_controls_widget = QWidget()
+            threshold_layout = QVBoxLayout()
+            
+            # Confidence threshold
+            conf_layout = QHBoxLayout()
+            conf_label = QLabel(self.tr("Confidence:"))
+            self.confidence_spinbox = QDoubleSpinBox()
+            self.confidence_spinbox.setRange(0.0, 1.0)
+            self.confidence_spinbox.setSingleStep(0.05)
+            self.confidence_spinbox.setDecimals(2)
+            self.confidence_spinbox.setValue(0.25)
+            self.confidence_spinbox.setToolTip(self.tr("Confidence threshold for detections"))
+            self.confidence_spinbox.valueChanged.connect(
+                lambda val: self.model_manager.set_loaded_model_param("confidence_threshold", val, False)
+            )
+            conf_layout.addWidget(conf_label)
+            conf_layout.addWidget(self.confidence_spinbox)
+            
+            # Score threshold (for YOLOv5)
+            score_layout = QHBoxLayout()
+            score_label = QLabel(self.tr("Score:"))
+            self.score_spinbox = QDoubleSpinBox()
+            self.score_spinbox.setRange(0.0, 1.0)
+            self.score_spinbox.setSingleStep(0.05)
+            self.score_spinbox.setDecimals(2)
+            self.score_spinbox.setValue(0.25)
+            self.score_spinbox.setToolTip(self.tr("Score threshold for class predictions"))
+            self.score_spinbox.valueChanged.connect(
+                lambda val: self.model_manager.set_loaded_model_param("score_threshold", val, False)
+            )
+            score_layout.addWidget(score_label)
+            score_layout.addWidget(self.score_spinbox)
+            
+            # NMS threshold
+            nms_layout = QHBoxLayout()
+            nms_label = QLabel(self.tr("NMS:"))
+            self.nms_spinbox = QDoubleSpinBox()
+            self.nms_spinbox.setRange(0.0, 1.0)
+            self.nms_spinbox.setSingleStep(0.05)
+            self.nms_spinbox.setDecimals(2)
+            self.nms_spinbox.setValue(0.45)
+            self.nms_spinbox.setToolTip(self.tr("Non-Maximum Suppression threshold"))
+            self.nms_spinbox.valueChanged.connect(
+                lambda val: self.model_manager.set_loaded_model_param("nms_threshold", val, False)
+            )
+            nms_layout.addWidget(nms_label)
+            nms_layout.addWidget(self.nms_spinbox)
+            
+            # Add to threshold layout
+            threshold_layout.addLayout(conf_layout)
+            threshold_layout.addLayout(score_layout)
+            threshold_layout.addLayout(nms_layout)
+            self.threshold_controls_widget.setLayout(threshold_layout)
+            
+            # Add to main layout (insert before buttons if possible)
+            layout.addWidget(self.threshold_controls_widget)
+            
+            # Hide by default
+            self.threshold_controls_widget.hide()
+
+    def _update_threshold_controls_from_config(self, model_config):
+        """Update threshold spinbox values from model config"""
+        if not hasattr(self, 'confidence_spinbox'):
+            return
+            
+        # Show/hide threshold controls based on model type
+        if model_config and model_config.get("type") in ["yolov5", "yolov8"]:
+            self.threshold_controls_widget.show()
+            
+            # Temporarily disconnect signals to avoid triggering updates
+            self.confidence_spinbox.blockSignals(True)
+            self.score_spinbox.blockSignals(True)
+            self.nms_spinbox.blockSignals(True)
+            
+            # Update values from config
+            self.confidence_spinbox.setValue(
+                model_config.get("confidence_threshold", 0.25)
+            )
+            self.score_spinbox.setValue(
+                model_config.get("score_threshold", 0.25)
+            )
+            self.nms_spinbox.setValue(
+                model_config.get("nms_threshold", 0.45)
+            )
+            
+            # Reconnect signals
+            self.confidence_spinbox.blockSignals(False)
+            self.score_spinbox.blockSignals(False)
+            self.nms_spinbox.blockSignals(False)
+        else:
+            self.threshold_controls_widget.hide()
 
     def on_close(self):
         return True

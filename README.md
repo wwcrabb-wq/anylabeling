@@ -79,6 +79,51 @@ pip install anylabeling # or pip install anylabeling-gpu for GPU support
 anylabeling
 ```
 
+### Quick Run Scripts
+
+For convenience, you can use the provided scripts to run AnyLabeling with a simple double-click:
+
+- **Unix/Linux/macOS**: Double-click `scripts/run_anylabeling.sh` or run from terminal:
+  ```bash
+  ./scripts/run_anylabeling.sh
+  ```
+
+- **Windows**: Double-click `scripts/run_anylabeling.bat` or run from command prompt:
+  ```cmd
+  scripts\run_anylabeling.bat
+  ```
+
+These scripts will automatically activate your virtual environment if present and launch the application.
+
+### Optional: Ultralytics YOLO Support
+
+AnyLabeling now supports loading custom YOLOv5/YOLOv8 `.pt` model files for auto-labeling! This provides more flexible and reliable auto-labeling compared to ONNX/OpenCV DNN formats.
+
+**To use .pt models:**
+
+1. Install the ultralytics package:
+   ```bash
+   pip install ultralytics
+   ```
+
+2. Load a custom model in the UI by selecting "Load Custom Model" and pointing to your model's `config.yaml` file
+
+3. Your config.yaml should specify a `.pt` file as the `model_path`:
+   ```yaml
+   type: yolov8  # or yolov5
+   model_path: your_model.pt
+   # ... other config fields
+   ```
+
+4. The application will automatically use ultralytics if available; otherwise it falls back to OpenCV DNN
+
+**Live Threshold Tuning:** When using YOLO models (yolov5/yolov8), you'll see live controls for:
+- **Confidence Threshold**: Minimum confidence for detections
+- **Score Threshold**: Minimum score for class predictions (YOLOv5)
+- **NMS Threshold**: Non-Maximum Suppression threshold for overlapping boxes
+
+Adjust these values in real-time to fine-tune detection behavior without reloading the model!
+
 ## Documentation
 
 **Website:** [https://anylabeling.nrl.ai](https://anylabeling.nrl.ai)/
