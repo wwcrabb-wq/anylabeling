@@ -137,6 +137,27 @@ class ModelManager(QObject):
         if self.loaded_model_config and self.loaded_model_config["model"]:
             self.loaded_model_config["model"].set_output_mode(mode)
 
+    @pyqtSlot(str, object, bool)
+    def set_loaded_model_param(self, key, value, persist=False):
+        """
+        Update a parameter in the loaded model's config.
+        
+        Args:
+            key: The config parameter key to update
+            value: The new value for the parameter
+            persist: If True, persist the change to the config file
+        """
+        with self.loaded_model_config_lock:
+            if self.loaded_model_config and self.loaded_model_config.get("model"):
+                try:
+                    self.loaded_model_config["model"].set_config_param(key, value, persist)
+                    # Update the model_config dict as well
+                    self.loaded_model_config[key] = value
+                    # Emit signal to notify UI of changes
+                    self.model_configs_changed.emit(self.model_configs)
+                except Exception as e:
+                    logging.warning(f"Failed to update model parameter {key}: {e}")
+
     @pyqtSlot()
     def on_model_download_finished(self):
         """Handle model download thread finished"""

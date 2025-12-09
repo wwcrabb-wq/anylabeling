@@ -47,10 +47,37 @@ class YOLOv8(Model):
                 )
             )
 
-        self.net = cv2.dnn.readNet(model_abs_path)
-        if __preferred_device__ == "GPU":
-            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+        self.net = None
+        self.ultralytics_model = None
+        self.use_ultralytics = False
+        
+        # Try loading with ultralytics if model is .pt
+        if model_abs_path.endswith(".pt"):
+            try:
+                from ultralytics import YOLO
+                self.ultralytics_model = YOLO(model_abs_path)
+                self.use_ultralytics = True
+                logging.info("Loaded YOLOv8 model using ultralytics")
+            except ImportError:
+                logging.warning(
+                    "Ultralytics not available. To use .pt models, install: pip install ultralytics"
+                )
+                self.on_message(
+                    QCoreApplication.translate(
+                        "Model",
+                        "Ultralytics not installed. Install with: pip install ultralytics"
+                    )
+                )
+            except Exception as e:
+                logging.warning(f"Failed to load .pt with ultralytics: {e}")
+        
+        # Fallback to cv2.dnn if ultralytics failed or not a .pt file
+        if not self.use_ultralytics:
+            self.net = cv2.dnn.readNet(model_abs_path)
+            if __preferred_device__ == "GPU":
+                self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+                self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+        
         self.classes = self.config["classes"]
 
     def pre_process(self, input_image, net):
@@ -95,6 +122,10 @@ class YOLOv8(Model):
         x_factor = image_width / self.config["input_width"]
         y_factor = image_height / self.config["input_height"]
 
+        # Read thresholds from config at prediction time for live updates
+        confidence_threshold = self.config.get("confidence_threshold", 0.25)
+        nms_threshold = self.config.get("nms_threshold", 0.45)
+
         # Iterate through 8400 rows.
         for r in range(rows):
             row = outputs[0][r]
@@ -104,7 +135,7 @@ class YOLOv8(Model):
             _, confidence, _, (_, class_id) = cv2.minMaxLoc(classes_scores)
 
             # Discard confidence lower than threshold
-            if confidence >= self.config["confidence_threshold"]:
+            if confidence >= confidence_threshold:
                 confidences.append(confidence)
                 class_ids.append(class_id)
 
@@ -123,8 +154,8 @@ class YOLOv8(Model):
         indices = cv2.dnn.NMSBoxes(
             boxes,
             confidences,
-            self.config["confidence_threshold"],
-            self.config["nms_threshold"],
+            confidence_threshold,
+            nms_threshold,
         )
 
         output_boxes = []
@@ -165,10 +196,13 @@ class YOLOv8(Model):
             logging.warning(e)
             return []
 
-        detections = self.pre_process(image, self.net)
-        boxes = self.post_process(image, detections)
+        if self.use_ultralytics and self.ultralytics_model:
+            boxes = self._predict_ultralytics(image)
+        else:
+            detections = self.pre_process(image, self.net)
+            boxes = self.post_process(image, detections)
+        
         shapes = []
-
         for box in boxes:
             shape = Shape(label=box["label"], shape_type="rectangle", flags={})
             shape.add_point(QtCore.QPointF(box["x1"], box["y1"]))
@@ -178,5 +212,62 @@ class YOLOv8(Model):
         result = AutoLabelingResult(shapes, replace=True)
         return result
 
+    def _predict_ultralytics(self, image):
+        """
+        Run prediction using ultralytics model
+        """
+        try:
+            # Read thresholds from config at prediction time for live updates
+            conf_threshold = self.config.get("confidence_threshold", 0.25)
+            nms_threshold = self.config.get("nms_threshold", 0.45)
+            
+            # Run prediction
+            results = self.ultralytics_model.predict(
+                source=image,
+                conf=conf_threshold,
+                iou=nms_threshold,
+                verbose=False
+            )
+            
+            boxes = []
+            if results and len(results) > 0:
+                result = results[0]
+                if result.boxes is not None:
+                    for box in result.boxes:
+                        # Extract box coordinates
+                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                        conf = float(box.conf[0].cpu().numpy())
+                        cls_id = int(box.cls[0].cpu().numpy())
+                        
+                        # Get label from classes or use default
+                        if cls_id < len(self.classes):
+                            label = self.classes[cls_id]
+                        else:
+                            label = f"AUTOLABEL_OBJECT_{cls_id}"
+                        
+                        boxes.append({
+                            "x1": int(x1),
+                            "y1": int(y1),
+                            "x2": int(x2),
+                            "y2": int(y2),
+                            "label": label,
+                            "score": conf
+                        })
+            
+            return boxes
+        except Exception as e:
+            logging.warning(f"Ultralytics prediction failed: {e}")
+            return []
+
     def unload(self):
-        del self.net
+        if self.net is not None:
+            del self.net
+        if self.ultralytics_model is not None:
+            del self.ultralytics_model
+
+    def _on_config_param_changed(self, key, value):
+        """
+        Hook for config parameter changes.
+        Can be extended in the future for specific parameter handling.
+        """
+        pass
