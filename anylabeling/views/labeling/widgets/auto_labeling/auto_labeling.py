@@ -1,8 +1,15 @@
 import os
 
 from PyQt5 import uic
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
-from PyQt5.QtWidgets import QWidget, QFileDialog
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
+from PyQt5.QtWidgets import (
+    QWidget,
+    QFileDialog,
+    QLabel,
+    QDoubleSpinBox,
+    QHBoxLayout,
+    QVBoxLayout,
+)
 
 from anylabeling.services.auto_labeling.model_manager import ModelManager
 from anylabeling.services.auto_labeling.types import AutoLabelingMode
@@ -306,9 +313,6 @@ class AutoLabelingWidget(QWidget):
 
     def _setup_threshold_controls(self):
         """Setup threshold control widgets programmatically"""
-        from PyQt5.QtWidgets import QLabel, QDoubleSpinBox, QHBoxLayout, QVBoxLayout
-        from PyQt5.QtCore import Qt
-        
         # Create threshold controls container (if not already present)
         if not hasattr(self, 'threshold_controls_widget'):
             # Find the main layout (assuming it exists in the .ui file)
@@ -318,7 +322,6 @@ class AutoLabelingWidget(QWidget):
                 return
             
             # Create container widget for threshold controls
-            from PyQt5.QtWidgets import QWidget
             self.threshold_controls_widget = QWidget()
             threshold_layout = QVBoxLayout()
             
