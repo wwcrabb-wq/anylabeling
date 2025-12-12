@@ -297,7 +297,7 @@ class ModelManager(QObject):
                 # Check model architecture or metadata
                 model_name = (
                     str(model.ckpt.get("model", "")).lower()
-                    if hasattr(model, "ckpt")
+                    if hasattr(model, "ckpt") and model.ckpt is not None
                     else ""
                 )
                 if "v11" in model_name or "yolo11" in model_name:
@@ -337,7 +337,7 @@ class ModelManager(QObject):
             config_file = os.path.join(os.path.dirname(pt_file), "config.yaml")
 
             with open(config_file, "w") as f:
-                yaml.safe_dump(config_dict, f, default_flow_style=False, sort_keys=False)
+                yaml.safe_dump(config_dict, f, default_flow_style=False)
 
             self.new_model_status.emit(self.tr(f"Config file generated: {config_file}"))
             logging.info(f"Auto-generated config file: {config_file}")
