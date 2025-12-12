@@ -141,7 +141,7 @@ class ModelManager(QObject):
     def set_loaded_model_param(self, key, value, persist=False):
         """
         Update a parameter in the loaded model's config.
-        
+
         Args:
             key: The config parameter key to update
             value: The new value for the parameter
@@ -150,7 +150,9 @@ class ModelManager(QObject):
         with self.loaded_model_config_lock:
             if self.loaded_model_config and self.loaded_model_config.get("model"):
                 try:
-                    self.loaded_model_config["model"].set_config_param(key, value, persist)
+                    self.loaded_model_config["model"].set_config_param(
+                        key, value, persist
+                    )
                     # Update the model_config dict as well
                     self.loaded_model_config[key] = value
                     # Emit signal to notify UI of changes
@@ -188,6 +190,18 @@ class ModelManager(QObject):
             )
             return
 
+        # If it's a .pt file, auto-generate config
+        if config_file.endswith(".pt"):
+            try:
+                config_file = self._generate_config_from_pt(config_file)
+                if not config_file:
+                    return
+            except Exception as e:
+                self.new_model_status.emit(
+                    self.tr(f"Error generating config from .pt file: {str(e)}")
+                )
+                return
+
         # Check config file content
         model_config = {}
         with open(config_file, "r") as f:
@@ -202,7 +216,8 @@ class ModelManager(QObject):
             "type" not in model_config
             or "display_name" not in model_config
             or "name" not in model_config
-            or model_config["type"] not in ["segment_anything", "yolov5", "yolov8"]
+            or model_config["type"]
+            not in ["segment_anything", "yolov5", "yolov8", "yolov11"]
         ):
             self.new_model_status.emit(
                 self.tr("Error in loading custom model: Invalid config file format.")
@@ -242,6 +257,97 @@ class ModelManager(QObject):
 
         # Load model
         self.load_model(model_config["config_file"])
+
+    def _generate_config_from_pt(self, pt_file):
+        """
+        Auto-generate config.yaml from a .pt model file
+
+        Args:
+            pt_file: Path to the .pt model file
+
+        Returns:
+            Path to the generated config.yaml file
+        """
+        try:
+            from ultralytics import YOLO
+        except ImportError:
+            self.new_model_status.emit(
+                self.tr("Please install ultralytics: pip install ultralytics")
+            )
+            logging.error(
+                "ultralytics not installed. Cannot auto-generate config from .pt file"
+            )
+            return None
+
+        try:
+            # Load model to extract information
+            self.new_model_status.emit(self.tr("Generating config from .pt file..."))
+            model = YOLO(pt_file)
+
+            # Extract class names
+            class_names = list(model.names.values())
+
+            # Auto-detect model type from model metadata
+            # YOLO11 models have specific architecture indicators
+            # Default to yolov8 as fallback - yolov8 and yolov11 are compatible via ultralytics
+            model_type = "yolov8"
+
+            # Try to detect model type from task or architecture
+            if hasattr(model, "task"):
+                # Check model architecture or metadata
+                model_name = (
+                    str(model.ckpt.get("model", "")).lower()
+                    if hasattr(model, "ckpt") and model.ckpt is not None
+                    else ""
+                )
+                if "v11" in model_name or "yolo11" in model_name:
+                    model_type = "yolov11"
+                elif "v5" in model_name or "yolov5" in model_name:
+                    model_type = "yolov5"
+                elif "v8" in model_name or "yolov8" in model_name:
+                    model_type = "yolov8"
+
+            # Additional heuristic: check file name
+            pt_basename = os.path.basename(pt_file).lower()
+            if "yolo11" in pt_basename or "v11" in pt_basename:
+                model_type = "yolov11"
+            elif "yolov5" in pt_basename or "v5" in pt_basename:
+                model_type = "yolov5"
+            elif "yolov8" in pt_basename or "v8" in pt_basename:
+                model_type = "yolov8"
+
+            # Create config dictionary
+            model_filename = os.path.basename(pt_file)
+            model_name = os.path.splitext(model_filename)[0]
+
+            config_dict = {
+                "type": model_type,
+                "name": model_name,
+                "display_name": model_name.replace("_", " ").title(),
+                "model_path": model_filename,
+                "input_width": 640,
+                "input_height": 640,
+                "score_threshold": 0.25,
+                "nms_threshold": 0.45,
+                "confidence_threshold": 0.25,
+                "classes": class_names,
+            }
+
+            # Generate config file in the same directory as the .pt file
+            config_file = os.path.join(os.path.dirname(pt_file), "config.yaml")
+
+            with open(config_file, "w") as f:
+                yaml.safe_dump(config_dict, f, default_flow_style=False)
+
+            self.new_model_status.emit(self.tr(f"Config file generated: {config_file}"))
+            logging.info(f"Auto-generated config file: {config_file}")
+
+            return config_file
+
+        except Exception as e:
+            logging.error(f"Failed to generate config from .pt file: {e}")
+            self.new_model_status.emit(self.tr(f"Error: {str(e)}"))
+            return None
 
     def load_model(self, config_file):
         """Run model loading in a thread"""
@@ -405,6 +511,28 @@ class ModelManager(QObject):
 
             try:
                 model_config["model"] = YOLOv8(
+                    model_config, on_message=self.new_model_status.emit
+                )
+                self.auto_segmentation_model_unselected.emit()
+            except Exception as e:  # noqa
+                self.new_model_status.emit(
+                    self.tr(
+                        "Error in loading model: {error_message}".format(
+                            error_message=str(e)
+                        )
+                    )
+                )
+                print(
+                    "Error in loading model: {error_message}".format(
+                        error_message=str(e)
+                    )
+                )
+                return
+        elif model_config["type"] == "yolov11":
+            from .yolov11 import YOLO11
+
+            try:
+                model_config["model"] = YOLO11(
                     model_config, on_message=self.new_model_status.emit
                 )
                 self.auto_segmentation_model_unselected.emit()
