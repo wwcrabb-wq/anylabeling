@@ -336,7 +336,7 @@ class ModelManager(QObject):
             config_file = os.path.join(os.path.dirname(pt_file), "config.yaml")
 
             with open(config_file, "w") as f:
-                yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+                yaml.safe_dump(config_dict, f, default_flow_style=False, sort_keys=False)
 
             self.new_model_status.emit(self.tr(f"Config file generated: {config_file}"))
             logging.info(f"Auto-generated config file: {config_file}")
