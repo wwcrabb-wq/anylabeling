@@ -259,10 +259,10 @@ class AutoLabelingWidget(QWidget):
         if config_path == "load_custom_model":
             # Unload current model
             self.model_manager.unload_model()
-            # Open file dialog to select "config.yaml" file for model
+            # Open file dialog to select "config.yaml" or ".pt" file for model
             file_dialog = QFileDialog(self)
             file_dialog.setFileMode(QFileDialog.ExistingFile)
-            file_dialog.setNameFilter("Config file (*.yaml)")
+            file_dialog.setNameFilter("Config/Model files (*.yaml *.pt)")
             if file_dialog.exec_():
                 config_file = file_dialog.selectedFiles()[0]
                 # Disable combobox while loading model
@@ -388,7 +388,7 @@ class AutoLabelingWidget(QWidget):
             return
             
         # Show/hide threshold controls based on model type
-        if model_config and model_config.get("type") in ["yolov5", "yolov8"]:
+        if model_config and model_config.get("type") in ["yolov5", "yolov8", "yolov11"]:
             self.threshold_controls_widget.show()
             
             # Temporarily disconnect signals to avoid triggering updates
