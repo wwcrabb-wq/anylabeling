@@ -289,7 +289,8 @@ class ModelManager(QObject):
 
             # Auto-detect model type from model metadata
             # YOLO11 models have specific architecture indicators
-            model_type = "yolov8"  # Default to yolov8 as fallback
+            # Default to yolov8 as fallback - yolov8 and yolov11 are compatible via ultralytics
+            model_type = "yolov8"
 
             # Try to detect model type from task or architecture
             if hasattr(model, "task"):
