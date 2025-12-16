@@ -1,5 +1,7 @@
 """Image filter dialog widget for filtering images based on YOLO detections."""
 
+import logging
+
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 from PyQt5.QtWidgets import (
     QDialog,
@@ -18,6 +20,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 
 from anylabeling.config import get_config, save_config
+
+logger = logging.getLogger(__name__)
 
 
 class FilterWorker(QObject):
@@ -84,10 +88,15 @@ class FilterWorker(QObject):
                                         if confidence >= self.min_confidence:
                                             has_detection = True
                                             break
-                                except (ValueError, IndexError, AttributeError):
-                                    # If can't parse, assume it passes
-                                    has_detection = True
-                                    break
+                                except (ValueError, IndexError, AttributeError) as e:
+                                    # If can't parse confidence, log and skip this detection
+                                    logger.debug(
+                                        "Could not parse confidence from shape description '%s': %s",
+                                        shape.description,
+                                        e,
+                                    )
+                                    # Don't assume it passes - continue checking other shapes
+                                    continue
                             else:
                                 # If no score info, assume it passes threshold
                                 has_detection = True
@@ -102,7 +111,7 @@ class FilterWorker(QObject):
                     )
 
                 except Exception as e:
-                    print(f"Error processing {image_path}: {e}")
+                    logger.warning("Error processing %s: %s", image_path, e)
                     continue
 
             if not self.is_cancelled:
@@ -367,9 +376,9 @@ class ImageFilterDialog(QDialog):
             percentage = int((current / total) * 100)
             self.progress_bar.setValue(percentage)
             self.progress_label.setText(
-                self.tr(f"Processing: {current}/{total} images")
+                self.tr("Processing: %d/%d images") % (current, total)
             )
-            self.matched_label.setText(self.tr(f"Matched: {matched} images"))
+            self.matched_label.setText(self.tr("Matched: %d images") % matched)
 
     def on_filtering_finished(self, filtered_images):
         """Handle filtering completion."""
@@ -381,9 +390,8 @@ class ImageFilterDialog(QDialog):
         QMessageBox.information(
             self,
             self.tr("Filtering Complete"),
-            self.tr(
-                f"Found {len(filtered_images)} images with detections out of {len(self.image_paths)} total images."
-            ),
+            self.tr("Found %d images with detections out of %d total images.")
+            % (len(filtered_images), len(self.image_paths)),
         )
 
         self.accept()
@@ -396,7 +404,7 @@ class ImageFilterDialog(QDialog):
         QMessageBox.critical(
             self,
             self.tr("Filtering Error"),
-            self.tr(f"An error occurred during filtering: {error_msg}"),
+            self.tr("An error occurred during filtering: %s") % error_msg,
         )
 
         # Re-enable buttons
