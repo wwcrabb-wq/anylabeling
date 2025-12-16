@@ -2624,6 +2624,9 @@ class LabelingWidget(LabelDialog):
             return
 
         # Get all images in the folder
+        # Note: We scan images before showing the dialog to display the total count
+        # and to provide the image list for filtering. This is fast as it only
+        # scans directory structure, not loading images into memory.
         all_images = self.scan_all_images(target_dir_path)
 
         # Show filter dialog

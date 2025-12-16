@@ -77,6 +77,8 @@ class FilterWorker(QObject):
                             elif hasattr(shape, "description") and shape.description:
                                 try:
                                     # Try to extract confidence from description
+                                    # Expected format: "label XX%" where XX is confidence percentage
+                                    # e.g., "person 85%", "car 92%"
                                     if (
                                         isinstance(shape.description, str)
                                         and "%" in shape.description
@@ -99,6 +101,11 @@ class FilterWorker(QObject):
                                     continue
                             else:
                                 # If no score info, assume it passes threshold
+                                # This is a fallback for models that don't provide confidence scores
+                                # Note: This may lead to false positives with some models
+                                logger.debug(
+                                    "No confidence score found for shape, including by default"
+                                )
                                 has_detection = True
                                 break
 
@@ -411,6 +418,9 @@ class ImageFilterDialog(QDialog):
         self.apply_button.setEnabled(True)
         self.no_filter_radio.setEnabled(True)
         self.filter_radio.setEnabled(True)
+        # Re-enable filter options if filter mode is selected
+        if self.filter_radio.isChecked():
+            self.filter_options_group.setEnabled(True)
 
     def get_filtered_images(self):
         """Return the filtered image list, or None if no filtering was applied."""
