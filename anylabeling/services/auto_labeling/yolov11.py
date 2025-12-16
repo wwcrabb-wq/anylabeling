@@ -54,7 +54,29 @@ class YOLO11(Model):
         # Try loading with ultralytics if model is .pt
         if model_abs_path.endswith(".pt"):
             try:
+                import torch
                 from ultralytics import YOLO
+
+                # Register ultralytics classes as safe globals for PyTorch 2.6+ compatibility
+                if hasattr(torch.serialization, "add_safe_globals"):
+                    try:
+                        from ultralytics.nn.tasks import (
+                            DetectionModel,
+                            SegmentationModel,
+                            ClassificationModel,
+                            PoseModel,
+                        )
+
+                        torch.serialization.add_safe_globals(
+                            [
+                                DetectionModel,
+                                SegmentationModel,
+                                ClassificationModel,
+                                PoseModel,
+                            ]
+                        )
+                    except (ImportError, AttributeError):
+                        pass  # Older ultralytics version or classes not available
 
                 self.ultralytics_model = YOLO(model_abs_path)
                 self.use_ultralytics = True

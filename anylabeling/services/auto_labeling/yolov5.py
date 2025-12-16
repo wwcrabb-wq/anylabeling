@@ -50,11 +50,34 @@ class YOLOv5(Model):
         self.net = None
         self.ultralytics_model = None
         self.use_ultralytics = False
-        
+
         # Try loading with ultralytics if model is .pt
         if model_abs_path.endswith(".pt"):
             try:
+                import torch
                 from ultralytics import YOLO
+
+                # Register ultralytics classes as safe globals for PyTorch 2.6+ compatibility
+                if hasattr(torch.serialization, "add_safe_globals"):
+                    try:
+                        from ultralytics.nn.tasks import (
+                            DetectionModel,
+                            SegmentationModel,
+                            ClassificationModel,
+                            PoseModel,
+                        )
+
+                        torch.serialization.add_safe_globals(
+                            [
+                                DetectionModel,
+                                SegmentationModel,
+                                ClassificationModel,
+                                PoseModel,
+                            ]
+                        )
+                    except (ImportError, AttributeError):
+                        pass  # Older ultralytics version or classes not available
+
                 self.ultralytics_model = YOLO(model_abs_path)
                 self.use_ultralytics = True
                 logging.info("Loaded YOLOv5 model using ultralytics")
@@ -65,19 +88,19 @@ class YOLOv5(Model):
                 self.on_message(
                     QCoreApplication.translate(
                         "Model",
-                        "Ultralytics not installed. Install with: pip install ultralytics"
+                        "Ultralytics not installed. Install with: pip install ultralytics",
                     )
                 )
             except Exception as e:
                 logging.warning(f"Failed to load .pt with ultralytics: {e}")
-        
+
         # Fallback to cv2.dnn if ultralytics failed or not a .pt file
         if not self.use_ultralytics:
             self.net = cv2.dnn.readNet(model_abs_path)
             if __preferred_device__ == "GPU":
                 self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
                 self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
-        
+
         self.classes = self.config["classes"]
 
     def pre_process(self, input_image, net):
@@ -206,7 +229,7 @@ class YOLOv5(Model):
         else:
             detections = self.pre_process(image, self.net)
             boxes = self.post_process(image, detections)
-        
+
         shapes = []
         for box in boxes:
             shape = Shape(label=box["label"], shape_type="rectangle", flags={})
@@ -225,15 +248,12 @@ class YOLOv5(Model):
             # Read thresholds from config at prediction time for live updates
             conf_threshold = self.config.get("confidence_threshold", 0.25)
             nms_threshold = self.config.get("nms_threshold", 0.45)
-            
+
             # Run prediction
             results = self.ultralytics_model.predict(
-                source=image,
-                conf=conf_threshold,
-                iou=nms_threshold,
-                verbose=False
+                source=image, conf=conf_threshold, iou=nms_threshold, verbose=False
             )
-            
+
             boxes = []
             if results and len(results) > 0:
                 result = results[0]
@@ -243,22 +263,24 @@ class YOLOv5(Model):
                         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                         conf = float(box.conf[0].cpu().numpy())
                         cls_id = int(box.cls[0].cpu().numpy())
-                        
+
                         # Get label from classes or use default
                         if cls_id < len(self.classes):
                             label = self.classes[cls_id]
                         else:
                             label = f"AUTOLABEL_OBJECT_{cls_id}"
-                        
-                        boxes.append({
-                            "x1": int(x1),
-                            "y1": int(y1),
-                            "x2": int(x2),
-                            "y2": int(y2),
-                            "label": label,
-                            "score": conf
-                        })
-            
+
+                        boxes.append(
+                            {
+                                "x1": int(x1),
+                                "y1": int(y1),
+                                "x2": int(x2),
+                                "y2": int(y2),
+                                "label": label,
+                                "score": conf,
+                            }
+                        )
+
             return boxes
         except Exception as e:
             logging.warning(f"Ultralytics prediction failed: {e}")
