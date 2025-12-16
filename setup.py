@@ -51,7 +51,7 @@ def get_install_requires():
         "onnx==1.16.1",
         "qimage2ndarray==1.10.0",
         "darkdetect==0.8.0",
-        "ultralytics==8.2.0",
+        "ultralytics>=8.3.0",
     ]
 
     # Add onnxruntime-gpu if GPU is preferred
