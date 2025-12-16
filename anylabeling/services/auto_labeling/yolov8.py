@@ -54,31 +54,25 @@ class YOLOv8(Model):
         # Try loading with ultralytics if model is .pt
         if model_abs_path.endswith(".pt"):
             try:
+                import functools
                 import torch
                 from ultralytics import YOLO
 
-                # Register ultralytics classes as safe globals for PyTorch 2.6+ compatibility
-                if hasattr(torch.serialization, "add_safe_globals"):
-                    try:
-                        from ultralytics.nn.tasks import (
-                            DetectionModel,
-                            SegmentationModel,
-                            ClassificationModel,
-                            PoseModel,
-                        )
+                # Patch torch.load to use weights_only=False for trusted user-selected models
+                # This is safe because users explicitly select these model files
+                original_load = torch.load
 
-                        torch.serialization.add_safe_globals(
-                            [
-                                DetectionModel,
-                                SegmentationModel,
-                                ClassificationModel,
-                                PoseModel,
-                            ]
-                        )
-                    except (ImportError, AttributeError):
-                        pass  # Older ultralytics version or classes not available
+                @functools.wraps(original_load)
+                def _patched_load(*args, **kwargs):
+                    if "weights_only" not in kwargs:
+                        kwargs["weights_only"] = False
+                    return original_load(*args, **kwargs)
 
-                self.ultralytics_model = YOLO(model_abs_path)
+                try:
+                    torch.load = _patched_load
+                    self.ultralytics_model = YOLO(model_abs_path)
+                finally:
+                    torch.load = original_load
                 self.use_ultralytics = True
                 logging.info("Loaded YOLOv8 model using ultralytics")
             except ImportError:
