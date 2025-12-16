@@ -1,5 +1,6 @@
 import os
 import copy
+import functools
 import time
 import shutil
 import pathlib
@@ -268,30 +269,10 @@ class ModelManager(QObject):
         Returns:
             Path to the generated config.yaml file
         """
+        # Import required modules
         try:
             import torch
             from ultralytics import YOLO
-
-            # Register ultralytics classes as safe globals for PyTorch 2.6+ compatibility
-            if hasattr(torch.serialization, "add_safe_globals"):
-                try:
-                    from ultralytics.nn.tasks import (
-                        DetectionModel,
-                        SegmentationModel,
-                        ClassificationModel,
-                        PoseModel,
-                    )
-
-                    torch.serialization.add_safe_globals(
-                        [
-                            DetectionModel,
-                            SegmentationModel,
-                            ClassificationModel,
-                            PoseModel,
-                        ]
-                    )
-                except (ImportError, AttributeError):
-                    pass  # Older ultralytics version or classes not available
         except ImportError:
             self.new_model_status.emit(
                 self.tr("Please install ultralytics: pip install ultralytics")
@@ -301,10 +282,26 @@ class ModelManager(QObject):
             )
             return None
 
+        # Patch torch.load to use weights_only=False for trusted user-selected models
+        # This is safe because users explicitly select these model files
+        original_load = torch.load
+
+        @functools.wraps(original_load)
+        def _patched_load(*args, **kwargs):
+            if "weights_only" not in kwargs:
+                kwargs["weights_only"] = False
+            return original_load(*args, **kwargs)
+
         try:
             # Load model to extract information
             self.new_model_status.emit(self.tr("Generating config from .pt file..."))
-            model = YOLO(pt_file)
+
+            # Temporarily patch torch.load
+            torch.load = _patched_load
+            try:
+                model = YOLO(pt_file)
+            finally:
+                torch.load = original_load
 
             # Extract class names
             class_names = list(model.names.values())
