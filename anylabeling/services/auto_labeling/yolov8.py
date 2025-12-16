@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 
@@ -55,7 +56,6 @@ class YOLOv8(Model):
         if model_abs_path.endswith(".pt"):
             try:
                 # Import here to avoid dependency errors when ultralytics is not installed
-                import functools
                 import torch
                 from ultralytics import YOLO
 

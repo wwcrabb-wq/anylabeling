@@ -1,5 +1,6 @@
 import os
 import copy
+import functools
 import time
 import shutil
 import pathlib
@@ -270,7 +271,6 @@ class ModelManager(QObject):
         """
         # Import required modules
         try:
-            import functools
             import torch
             from ultralytics import YOLO
         except ImportError:
