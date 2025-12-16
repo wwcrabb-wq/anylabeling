@@ -269,7 +269,29 @@ class ModelManager(QObject):
             Path to the generated config.yaml file
         """
         try:
+            import torch
             from ultralytics import YOLO
+
+            # Register ultralytics classes as safe globals for PyTorch 2.6+ compatibility
+            if hasattr(torch.serialization, "add_safe_globals"):
+                try:
+                    from ultralytics.nn.tasks import (
+                        DetectionModel,
+                        SegmentationModel,
+                        ClassificationModel,
+                        PoseModel,
+                    )
+
+                    torch.serialization.add_safe_globals(
+                        [
+                            DetectionModel,
+                            SegmentationModel,
+                            ClassificationModel,
+                            PoseModel,
+                        ]
+                    )
+                except (ImportError, AttributeError):
+                    pass  # Older ultralytics version or classes not available
         except ImportError:
             self.new_model_status.emit(
                 self.tr("Please install ultralytics: pip install ultralytics")
