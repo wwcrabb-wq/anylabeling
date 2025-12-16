@@ -54,6 +54,7 @@ class YOLOv5(Model):
         # Try loading with ultralytics if model is .pt
         if model_abs_path.endswith(".pt"):
             try:
+                # Import here to avoid dependency errors when ultralytics is not installed
                 import functools
                 import torch
                 from ultralytics import YOLO
