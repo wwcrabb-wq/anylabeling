@@ -120,6 +120,11 @@ shortcuts:
 # Auto labeling
 custom_models: []
 
+# Image filter settings
+image_filter:
+  enabled: false
+  min_confidence: 0.5
+
 # UI settings
 ui:
   dock_state: null

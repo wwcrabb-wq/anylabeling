@@ -32,6 +32,7 @@ from anylabeling.views.labeling.widgets import (
     BrightnessContrastDialog,
     Canvas,
     FileDialogPreview,
+    ImageFilterDialog,
     LabelDialog,
     LabelListWidget,
     LabelListWidgetItem,
@@ -2618,7 +2619,24 @@ class LabelingWidget(LabelDialog):
                 | QtWidgets.QFileDialog.DontResolveSymlinks,
             )
         )
-        self.import_image_folder(target_dir_path)
+        
+        if not target_dir_path:
+            return
+        
+        # Get all images in the folder
+        all_images = self.scan_all_images(target_dir_path)
+        
+        # Show filter dialog
+        filter_dialog = ImageFilterDialog(
+            parent=self,
+            model_manager=self.auto_labeling_widget.model_manager,
+            image_paths=all_images
+        )
+        
+        if filter_dialog.exec_():
+            filtered_images = filter_dialog.get_filtered_images()
+            self.import_image_folder(target_dir_path, filtered_images=filtered_images)
+        
 
     @property
     def image_list(self):
@@ -2656,7 +2674,7 @@ class LabelingWidget(LabelDialog):
 
         self.open_next_image()
 
-    def import_image_folder(self, dirpath, pattern=None, load=True):
+    def import_image_folder(self, dirpath, pattern=None, load=True, filtered_images=None):
         self.actions.open_next_image.setEnabled(True)
         self.actions.open_prev_image.setEnabled(True)
 
@@ -2666,7 +2684,14 @@ class LabelingWidget(LabelDialog):
         self.last_open_dir = dirpath
         self.filename = None
         self.file_list_widget.clear()
-        for filename in self.scan_all_images(dirpath):
+        
+        # If filtered_images is None, load all images; otherwise load only filtered ones
+        if filtered_images is None:
+            images_to_load = self.scan_all_images(dirpath)
+        else:
+            images_to_load = filtered_images
+        
+        for filename in images_to_load:
             if pattern and pattern not in filename:
                 continue
             label_file = osp.splitext(filename)[0] + ".json"
