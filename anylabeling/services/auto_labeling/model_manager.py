@@ -156,8 +156,10 @@ class ModelManager(QObject):
                     )
                     # Update the model_config dict as well
                     self.loaded_model_config[key] = value
-                    # Emit signal to notify UI of changes
-                    self.model_configs_changed.emit(self.model_configs)
+                    # Do not emit model_configs_changed here - it causes the combobox to reset.
+                    # The model_configs_changed signal should only be emitted when the
+                    # list of available models actually changes (e.g., when a new model
+                    # is added or removed), not when updating parameters like thresholds.
                 except Exception as e:
                     logging.warning(f"Failed to update model parameter {key}: {e}")
 
