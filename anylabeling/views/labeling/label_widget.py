@@ -2598,12 +2598,10 @@ class LabelingWidget(LabelDialog):
 
         # If marking as background, clear all shapes and labels
         if self.other_data["is_background"]:
-            # Clear all shapes from canvas
+            # Clear all shapes from canvas (also updates canvas display)
             self.load_shapes([], replace=True)
             # Clear the label list (Objects panel)
             self.label_list.clear()
-            # Update the canvas to refresh display
-            self.canvas.update()
             # Mark as dirty to enable undo and ensure proper save state tracking
             self.set_dirty()
 
