@@ -2604,6 +2604,8 @@ class LabelingWidget(LabelDialog):
             self.label_list.clear()
             # Update the canvas to refresh display
             self.canvas.update()
+            # Mark as dirty to enable undo and ensure proper save state tracking
+            self.set_dirty()
 
         # Save the label file with updated is_background flag
         if self.label_file:
