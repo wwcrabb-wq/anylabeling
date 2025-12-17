@@ -125,6 +125,7 @@ custom_models: []
 image_filter:
   enabled: false
   min_confidence: 0.5
+  max_confidence: 1.0
 
 # UI settings
 ui:
