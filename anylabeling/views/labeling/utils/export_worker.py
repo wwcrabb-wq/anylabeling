@@ -90,8 +90,14 @@ class ExportWorker(QRunnable):
         if self.checked_files:
             json_files = []
             for image_file in self.checked_files:
-                # Convert image file to corresponding JSON file
-                json_file = osp.splitext(osp.basename(image_file))[0] + ".json"
+                # Try to get relative path from input_dir if image_file is absolute
+                if osp.isabs(image_file) and image_file.startswith(self.input_dir):
+                    rel_path = osp.relpath(image_file, self.input_dir)
+                    json_file = osp.splitext(rel_path)[0] + ".json"
+                else:
+                    # If not absolute or not under input_dir, use basename
+                    json_file = osp.splitext(osp.basename(image_file))[0] + ".json"
+                
                 # Check if the JSON file exists
                 json_path = osp.join(self.input_dir, json_file)
                 if osp.isfile(json_path):
