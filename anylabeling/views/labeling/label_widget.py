@@ -852,6 +852,8 @@ class LabelingWidget(LabelDialog):
                 None,
                 toggle_keep_prev_mode,
                 toggle_auto_use_last_label_mode,
+                None,
+                toggle_background,
             ),
             # menu shown at right click
             menu=(
