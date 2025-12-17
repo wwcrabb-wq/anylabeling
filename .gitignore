@@ -11,3 +11,14 @@ anylabeling/data
 anylabeling/app_info.py-*
 zipped_models/*
 venv/
+
+# Performance optimization artifacts
+*.so
+*.pyd
+*.c
+*.cpp
+anylabeling/extensions/*.html
+anylabeling/rust_extensions/target/
+anylabeling/rust_extensions/Cargo.lock
+*.whl
+benchmarks/results/
