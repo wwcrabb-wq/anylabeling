@@ -1670,6 +1670,9 @@ class LabelingWidget(LabelDialog):
                 html.escape(text), *shape.fill_color.getRgb()[:3]
             )
         )
+        
+        # Update file list checkbox since we added a shape
+        self.update_file_list_checkbox()
 
     def shape_text_changed(self):
         text = self.shape_text_edit.toPlainText()
@@ -1726,6 +1729,9 @@ class LabelingWidget(LabelDialog):
         for shape in shapes:
             item = self.label_list.find_item_by_shape(shape)
             self.label_list.remove_item(item)
+        
+        # Update file list checkbox since we removed shapes
+        self.update_file_list_checkbox()
 
     def load_shapes(self, shapes, replace=True):
         self._no_selection_slot = True
@@ -2532,6 +2538,20 @@ class LabelingWidget(LabelDialog):
 
             self.reset_state()
 
+    def update_file_list_checkbox(self):
+        """Update checkbox state for current file based on shapes or background flag."""
+        if not self.image_path:
+            return
+        
+        for i in range(self.file_list_widget.count()):
+            item = self.file_list_widget.item(i)
+            if item.text() == self.image_path:
+                # Check if has shapes or is background
+                has_shapes = not self.no_shape()
+                is_background = getattr(self, 'is_background', False)
+                item.setCheckState(Qt.Checked if (has_shapes or is_background) else Qt.Unchecked)
+                break
+
     def toggle_background_image(self):
         """Toggle current image as background (negative sample)."""
         if not self.filename:
@@ -2544,14 +2564,8 @@ class LabelingWidget(LabelDialog):
         label_file = self.get_label_file()
         self.save_labels(label_file)
         
-        # Update checkbox in file list
-        for i in range(self.file_list_widget.count()):
-            item = self.file_list_widget.item(i)
-            if item.text() == self.image_path:
-                # Check if has shapes or is background
-                has_shapes = not self.no_shape()
-                item.setCheckState(Qt.Checked if (has_shapes or self.is_background) else Qt.Unchecked)
-                break
+        # Update checkbox in file list (already done in save_labels, but redundant is ok)
+        self.update_file_list_checkbox()
         
         # Show status message
         status = "marked as background" if self.is_background else "unmarked as background"
