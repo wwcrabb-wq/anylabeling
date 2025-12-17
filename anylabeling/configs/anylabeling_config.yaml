@@ -134,20 +134,20 @@ ui:
 # Performance optimization settings
 performance:
   # Batch processing settings
-  batch_size: 4  # Default batch size for inference
-  max_batch_size: 16  # Maximum allowed batch size
+  batch_size: 4  # Default batch size for inference (valid range: 1-16)
+  max_batch_size: 16  # Maximum allowed batch size (valid range: 1-32)
   
   # Threading settings
-  num_worker_threads: 8  # Number of worker threads for parallel processing
-  io_threads: 4  # Number of threads for I/O operations
+  num_worker_threads: 8  # Number of worker threads for parallel processing (valid range: 1-32)
+  io_threads: 4  # Number of threads for I/O operations (valid range: 1-16)
   
   # Caching settings
-  image_cache_size_mb: 512  # Maximum image cache size in megabytes
+  image_cache_size_mb: 512  # Maximum image cache size in megabytes (valid range: 128-2048)
   enable_result_caching: true  # Enable caching of filter results
   cache_persistence: true  # Persist cache to disk between sessions
   
   # Pre-loading settings
-  preload_count: 3  # Number of images to pre-load ahead
+  preload_count: 3  # Number of images to pre-load ahead (valid range: 1-10)
   preload_enabled: true  # Enable image pre-loading
   
   # GPU Settings (when applicable)

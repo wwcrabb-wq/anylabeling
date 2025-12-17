@@ -106,20 +106,20 @@ Comprehensive benchmarking infrastructure:
 
 **What was implemented:**
 - ✅ `anylabeling/services/auto_labeling/model.py`
-  - Implemented `on_next_files_changed()` method with PreloadWorker class
-  - Background thread for pre-loading with cancellation support
-  - Integration with ImageCache utility
+  - Implemented PreloadWorker class for background pre-loading
+  - Implemented on_next_files_changed() method with cancellation support
+  - Integrated with ImageCache utility for efficient memory management
 - ✅ `anylabeling/views/labeling/label_widget.py`
-  - Connected via `next_files_changed` signal
-  - Calls `inform_next_files()` after file navigation
-  - Passes next N files based on config
+  - Connected via next_files_changed signal to model manager
+  - Calls inform_next_files() after file navigation
+  - Calculates and passes next N files based on configuration
 - ✅ `anylabeling/services/auto_labeling/model_manager.py`
-  - Delegates to loaded model's `on_next_files_changed()` method
-  - Respects preload_count configuration
+  - Delegates to loaded model's on_next_files_changed() method
+  - Respects preload_count configuration setting
 - ✅ Configuration in `configs/anylabeling_config.yaml`
-  - `performance.preload_enabled: true` (default)
-  - `performance.preload_count: 3` (default)
-- ✅ Tests in `tests/test_preloading.py` - All passing
+  - Includes performance.preload_enabled (default: true)
+  - Includes performance.preload_count (default: 3)
+- ✅ Comprehensive test coverage in `tests/test_preloading.py`
 
 **Priority:** Complete ✅
 
