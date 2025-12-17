@@ -1,3 +1,5 @@
 """Utility modules for AnyLabeling performance optimizations."""
 
-__all__ = ["parallel", "image_cache", "performance"]
+from .generic_worker import GenericWorker
+
+__all__ = ["parallel", "image_cache", "performance", "GenericWorker"]
