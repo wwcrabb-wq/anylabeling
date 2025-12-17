@@ -2596,6 +2596,15 @@ class LabelingWidget(LabelDialog):
         current_is_background = self.other_data.get("is_background", False)
         self.other_data["is_background"] = not current_is_background
 
+        # If marking as background, clear all shapes and labels
+        if self.other_data["is_background"]:
+            # Clear all shapes from canvas
+            self.load_shapes([], replace=True)
+            # Clear the label list (Objects panel)
+            self.label_list.clear()
+            # Update the canvas to refresh display
+            self.canvas.update()
+
         # Save the label file with updated is_background flag
         if self.label_file:
             self.save_file()
