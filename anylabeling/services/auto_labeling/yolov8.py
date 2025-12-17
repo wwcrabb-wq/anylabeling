@@ -257,7 +257,7 @@ class YOLOv8(Model):
                 cv_img = qt_img_to_rgb_cv_img(img, img_path)
                 cv_images.append(cv_img)
             except Exception as e:
-                logging.warning(f"Could not convert image: {e}")
+                logging.warning("Could not convert image: %s", e)
                 cv_images.append(None)
 
         # Process batch
@@ -404,7 +404,7 @@ class YOLOv8(Model):
 
             return all_boxes
         except Exception as e:
-            logging.warning(f"Ultralytics batch prediction failed: {e}")
+            logging.warning("Ultralytics batch prediction failed: %s", e)
             return [[] for _ in images]
 
     def unload(self):
