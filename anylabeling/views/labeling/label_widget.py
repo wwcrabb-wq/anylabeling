@@ -2600,8 +2600,11 @@ class LabelingWidget(LabelDialog):
         if self.other_data["is_background"]:
             # Clear the label list (Objects panel)
             self.label_list.clear()
-            # Clear all shapes from canvas (also updates canvas display)
-            self.load_shapes([], replace=True)
+            # Clear all shapes from canvas
+            self.canvas.shapes = []
+            self.canvas.selected_shapes = []
+            self.canvas.store_shapes()  # Store for undo functionality
+            self.canvas.repaint()  # Force canvas repaint for immediate visual feedback
             # Mark as dirty to enable undo and ensure proper save state tracking
             self.set_dirty()
 
