@@ -2160,13 +2160,10 @@ class LabelingWidget(LabelDialog):
         else:
             self.set_clean()
         self.canvas.setEnabled(True)
-        # set zoom values
-        is_initial_load = not self.zoom_values
-        if self.filename in self.zoom_values:
-            self.zoom_mode = self.zoom_values[self.filename][0]
-            self.set_zoom(self.zoom_values[self.filename][1])
-        elif is_initial_load or not self._config["keep_prev_scale"]:
-            self.adjust_scale(initial=True)
+        # set zoom values - always start with fit-to-window for each new image
+        self.zoom_mode = self.FIT_WINDOW
+        self.actions.fit_window.setChecked(True)
+        self.adjust_scale(initial=True)
         # set scroll values
         for orientation in self.scroll_values:
             if self.filename in self.scroll_values[orientation]:
