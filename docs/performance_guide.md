@@ -315,6 +315,302 @@ Performance improvements are welcome! When contributing:
 4. Include benchmarking results
 5. Update this documentation
 
+## New Features (Latest Release)
+
+### Advanced Image Filter Enhancements
+
+The image filter dialog has been significantly enhanced with new features:
+
+#### 1. Class-Specific Filtering
+
+Filter images by specific object classes:
+
+**Usage:**
+1. Open Tools → Image Filter
+2. Select "Filter images by detections"
+3. Choose "Selected classes only"
+4. Select the classes you want to filter by (e.g., "person", "car")
+5. Click "Apply Filter"
+
+**Configuration:**
+```yaml
+image_filter:
+  selected_classes: ["person", "car"]  # null = any class
+```
+
+**Benefits:**
+- Filter images containing specific objects
+- Reduces false positives from unwanted classes
+- Settings persist across sessions
+
+#### 2. Detection Count Filter
+
+Filter images by number of detections:
+
+**Modes:**
+- **Any count** (default): At least one detection
+- **At least N**: Minimum N detections
+- **Exactly N**: Exactly N detections
+- **At most N**: Maximum N detections
+
+**Usage:**
+1. Select count mode from dropdown
+2. Set count value (1-100)
+3. Apply filter
+
+**Configuration:**
+```yaml
+image_filter:
+  count_mode: "at_least"  # "any", "at_least", "exactly", "at_most"
+  count_value: 3
+```
+
+**Use Cases:**
+- Find images with multiple objects
+- Filter images with exactly one object for single-object tasks
+- Exclude crowded scenes
+
+#### 3. Preview Thumbnails
+
+Visual preview of matched images:
+
+**Features:**
+- Shows up to 50 thumbnails (100x100 pixels)
+- Lazy loading for performance
+- Click thumbnail to see full path
+- Updates in real-time during filtering
+
+**Benefits:**
+- Quick visual verification
+- Immediate feedback on filter results
+- No need to open images individually
+
+#### 4. Export Filter Results
+
+Export filtered image lists in multiple formats:
+
+**Supported Formats:**
+1. **JSON**: Full details with paths, counts, settings
+   ```json
+   {
+     "total_images": 100,
+     "filtered_images": 25,
+     "filter_settings": {...},
+     "results": [...]
+   }
+   ```
+
+2. **TXT**: Simple list of file paths
+   ```
+   /path/to/image1.jpg
+   /path/to/image2.jpg
+   ```
+
+3. **CSV**: Summary with columns
+   ```csv
+   image_path
+   /path/to/image1.jpg
+   /path/to/image2.jpg
+   ```
+
+4. **Clipboard**: Quick sharing
+
+**Usage:**
+1. Complete filtering
+2. Click "Export Results"
+3. Choose format
+4. Save to file or copy to clipboard
+
+**Configuration:**
+```yaml
+image_filter:
+  last_export_dir: "/path/to/exports"  # Remembers last location
+```
+
+### Performance Settings Dialog
+
+New unified dialog for all performance settings:
+
+**Access:** Tools → Performance Settings...
+
+**Settings Available:**
+- **Backend Selection**: auto, onnx-cpu, onnx-gpu, ultralytics, tensorrt
+- **Batch Size**: 1-16 (default: 4)
+- **Worker Threads**: 1-16 (default: 8)
+- **Image Cache Size**: 128MB-2048MB (default: 512MB)
+- **Pre-loading**: Enable/disable and count (1-10, default: 3)
+- **Result Caching**: Enable/disable
+
+**Extension Status:**
+- Shows which extensions are available (Cython, Rust)
+- Provides installation links if not available
+
+**Benefits:**
+- Centralized configuration
+- No need to edit config files
+- Real-time extension status
+- Reset to defaults option
+
+### Result Caching
+
+Intelligent caching of filter results:
+
+**Features:**
+- Automatic cache key generation
+- Disk-persistent storage (~/.anylabeling/filter_cache/)
+- LRU eviction (max 100 entries)
+- Modification time checking
+- Cache statistics
+
+**How It Works:**
+1. First filter operation: Results cached
+2. Repeat with same settings: Instant results from cache
+3. Folder modified: Cache automatically invalidated
+4. Cache full: Oldest entries evicted
+
+**Cache Status Indicator:**
+- Shows if results are from cache
+- Displays hit rate
+- Shows cache size and entry count
+
+**Manual Control:**
+- "Clear Cache" button in filter dialog
+- Cache statistics in performance settings
+
+**Performance Impact:**
+- Near-instant results for cached queries
+- Typical speedup: 10-100x for repeated operations
+- Minimal disk space (JSON files)
+
+**Configuration:**
+```yaml
+performance:
+  enable_result_caching: true
+```
+
+### Pre-loading Integration
+
+Background image pre-loading for smoother navigation:
+
+**Features:**
+- Pre-loads next N images in background
+- Integrates with ImageCache
+- Automatic cancellation on file change
+- Configurable count
+
+**How It Works:**
+1. Navigate to image
+2. Background thread loads next N images
+3. Images stored in memory cache
+4. Next navigation is instant (if cached)
+
+**Models Supporting Pre-loading:**
+- YOLOv5
+- YOLOv8
+- YOLOv11
+- Segment Anything
+
+**Configuration:**
+```yaml
+performance:
+  preload_enabled: true
+  preload_count: 3  # Number of images to pre-load
+```
+
+**Benefits:**
+- Smoother navigation experience
+- Reduces waiting time
+- Especially helpful with slow storage
+- Works with image cache for maximum benefit
+
+**Technical Details:**
+- Background thread doesn't block UI
+- Automatic cleanup on model unload
+- Thread-safe implementation
+- Respects cache size limits
+
+### Benchmarking Suite
+
+New benchmarking tools for measuring performance:
+
+**Available Benchmarks:**
+1. `benchmark_filtering.py` - Image filter performance
+   - Different dataset sizes
+   - Sequential vs parallel comparison
+   - Cache performance
+
+2. `benchmark_inference.py` - Model inference speed
+3. `benchmark_io.py` - Image I/O operations
+4. `benchmark_nms.py` - NMS performance
+5. `run_benchmarks.py` - Master script with HTML report
+
+**Usage:**
+```bash
+# Run filter benchmarks
+python benchmarks/benchmark_filtering.py --output results.json
+
+# Run all benchmarks
+python benchmarks/run_benchmarks.py --output-dir results/
+```
+
+**Output:**
+- JSON results for analysis
+- Console summary
+- HTML report (from master script)
+
+## Troubleshooting
+
+### Common Issues
+
+#### Filter dialog is slow
+- **Increase worker threads**: Performance Settings → Worker Threads
+- **Enable result caching**: Performance Settings → Result Caching
+- **Check extension status**: Cython/Rust extensions improve performance
+- **Reduce dataset size**: Filter subfolders instead of entire dataset
+
+#### Pre-loading not working
+- **Check if enabled**: Performance Settings → Pre-loading
+- **Check logs**: Look for "Pre-loaded image" messages
+- **Verify model support**: Only YOLO and SAM models support pre-loading
+- **Cache size**: Increase if images are large
+
+#### Cache not persisting
+- **Check disk space**: ~/.anylabeling/filter_cache/
+- **Check permissions**: Ensure directory is writable
+- **Verify caching enabled**: Performance Settings → Result Caching
+- **Check logs**: Look for cache-related warnings
+
+#### Export fails
+- **Check disk space**: Ensure adequate space for export
+- **Verify path**: Check last_export_dir in config
+- **Try different format**: Some formats may work better than others
+
+## Performance Tips
+
+### For Image Filtering
+
+1. **Use class filtering** to reduce false positives
+2. **Enable result caching** for repeated operations
+3. **Increase worker threads** on multi-core systems
+4. **Export results** to avoid re-filtering
+5. **Use count filters** to narrow results quickly
+
+### For General Performance
+
+1. **Enable all available extensions** (Cython, Rust)
+2. **Increase batch size** if you have GPU memory
+3. **Enable pre-loading** for smoother navigation
+4. **Adjust cache size** based on available RAM
+5. **Use appropriate worker count** (typically = CPU cores)
+
+### For Large Datasets
+
+1. **Filter by subfolders** instead of entire dataset
+2. **Use export/import** to save results
+3. **Enable caching** to avoid re-computation
+4. **Increase cache size** if you have RAM
+5. **Consider batch processing** for model inference
+
 ## Support
 
 For performance-related issues:
@@ -325,3 +621,4 @@ For performance-related issues:
    - Model type and size
    - Configuration settings
    - Performance measurements
+   - Cache statistics (if relevant)
