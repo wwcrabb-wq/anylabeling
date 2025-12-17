@@ -467,7 +467,7 @@ class LabelingWidget(LabelDialog):
         toggle_background = create_action(
             self.tr("Toggle Background Image"),
             self.toggle_background_image,
-            shortcuts.get("toggle_background", "B"),
+            shortcuts["toggle_background"],
             None,
             self.tr("Mark/unmark image as background (negative sample)"),
             enabled=False,
