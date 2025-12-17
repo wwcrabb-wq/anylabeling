@@ -9,3 +9,11 @@ onnxruntime-gpu==1.18.1
 qimage2ndarray==1.10.0
 darkdetect==0.8.0
 ultralytics>=8.3.0
+
+# Optional GPU performance dependencies
+# TensorRT for NVIDIA GPUs (2-5x speedup)
+# Install with: pip install tensorrt pycuda cupy-cuda12x
+# Note: Requires CUDA 12.x and compatible NVIDIA driver
+# nvidia-tensorrt>=8.6.0
+# pycuda>=2022.1
+# cupy-cuda12x>=12.0.0
