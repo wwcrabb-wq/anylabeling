@@ -5,11 +5,13 @@ import socket
 import ssl
 from abc import abstractmethod
 
-from PyQt5.QtCore import QCoreApplication, QFile, QObject
+from PyQt5.QtCore import QCoreApplication, QFile, QObject, QThread, pyqtSignal
 from PyQt5.QtGui import QImage
 
 from .types import AutoLabelingResult
 from anylabeling.views.labeling.label_file import LabelFile, LabelFileError
+from anylabeling.utils.image_cache import ImageCache
+from anylabeling.config import get_config
 
 # Prevent issue when downloading models behind a proxy
 os.environ["no_proxy"] = "*"
@@ -20,6 +22,56 @@ socket.setdefaulttimeout(240)  # Prevent timeout when downloading models
 ssl._create_default_https_context = (
     ssl._create_unverified_context
 )  # Prevent issue when downloading models behind a proxy
+
+
+class PreloadWorker(QObject):
+    """Worker for pre-loading images in background thread."""
+    
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+    
+    def __init__(self, file_paths, image_cache):
+        super().__init__()
+        self.file_paths = file_paths
+        self.image_cache = image_cache
+        self.is_cancelled = False
+        
+    def run(self):
+        """Pre-load images into cache."""
+        try:
+            for file_path in self.file_paths:
+                if self.is_cancelled:
+                    break
+                    
+                # Check if already in cache
+                if file_path in self.image_cache:
+                    continue
+                
+                try:
+                    # Load image
+                    from PIL import Image
+                    import numpy as np
+                    
+                    img = Image.open(file_path)
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
+                    img_array = np.array(img)
+                    
+                    # Add to cache
+                    self.image_cache.put(file_path, img_array)
+                    logging.debug(f"Pre-loaded image: {file_path}")
+                    
+                except Exception as e:
+                    logging.debug(f"Failed to pre-load {file_path}: {e}")
+                    
+            self.finished.emit()
+            
+        except Exception as e:
+            self.error.emit(str(e))
+            
+    def cancel(self):
+        """Cancel pre-loading."""
+        self.is_cancelled = True
 
 
 class Model(QObject):
@@ -61,6 +113,12 @@ class Model(QObject):
         self.output_mode = self.Meta.default_output_mode
         # Store config_file path if provided in config
         self.config_file = self.config.get("config_file", None)
+        
+        # Initialize pre-loading
+        self.preload_worker = None
+        self.preload_thread = None
+        self.image_cache = None
+        self._init_image_cache()
 
     def get_required_widgets(self):
         """
@@ -132,12 +190,57 @@ class Model(QObject):
             logging.error("Error reading {}".format(filename))
         return image
 
+    def _init_image_cache(self):
+        """Initialize image cache from config."""
+        try:
+            config = get_config()
+            perf_config = config.get("performance", {})
+            cache_size_mb = perf_config.get("image_cache_size_mb", 512)
+            self.image_cache = ImageCache(max_memory_mb=cache_size_mb)
+            logging.info(f"Image cache initialized with {cache_size_mb}MB")
+        except Exception as e:
+            logging.warning(f"Failed to initialize image cache: {e}")
+            self.image_cache = ImageCache(max_memory_mb=512)  # Default fallback
+
     def on_next_files_changed(self, next_files):
         """
         Handle next files changed. This function can preload next files
         and run inference to save time for user.
+        
+        Args:
+            next_files: List of file paths to pre-load
         """
-        pass
+        # Check if pre-loading is enabled
+        config = get_config()
+        perf_config = config.get("performance", {})
+        preload_enabled = perf_config.get("preload_enabled", True)
+        
+        if not preload_enabled or not next_files or not self.image_cache:
+            return
+        
+        # Cancel previous pre-loading if active
+        if self.preload_worker and self.preload_thread:
+            self.preload_worker.cancel()
+            self.preload_thread.quit()
+            self.preload_thread.wait()
+        
+        # Get preload count from config
+        preload_count = perf_config.get("preload_count", 3)
+        files_to_preload = next_files[:preload_count]
+        
+        # Start new pre-loading thread
+        self.preload_worker = PreloadWorker(files_to_preload, self.image_cache)
+        self.preload_thread = QThread()
+        self.preload_worker.moveToThread(self.preload_thread)
+        
+        # Connect signals
+        self.preload_thread.started.connect(self.preload_worker.run)
+        self.preload_worker.finished.connect(self.preload_thread.quit)
+        self.preload_worker.error.connect(lambda e: logging.warning(f"Pre-loading error: {e}"))
+        
+        # Start thread
+        self.preload_thread.start()
+        logging.info(f"Started pre-loading {len(files_to_preload)} images")
 
     def set_output_mode(self, mode):
         """
