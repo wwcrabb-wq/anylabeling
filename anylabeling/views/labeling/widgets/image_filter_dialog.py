@@ -31,11 +31,12 @@ class FilterWorker(QObject):
     finished = pyqtSignal(list)  # filtered image list
     error = pyqtSignal(str)
 
-    def __init__(self, image_paths, model_manager, min_confidence):
+    def __init__(self, image_paths, model_manager, min_confidence, max_confidence=1.0):
         super().__init__()
         self.image_paths = image_paths
         self.model_manager = model_manager
         self.min_confidence = min_confidence
+        self.max_confidence = max_confidence
         self.is_cancelled = False
 
     def run(self):
@@ -70,7 +71,7 @@ class FilterWorker(QObject):
                         for shape in result.shapes:
                             # Check if shape has score attribute and meets threshold
                             if hasattr(shape, "score") and shape.score is not None:
-                                if shape.score >= self.min_confidence:
+                                if self.min_confidence <= shape.score <= self.max_confidence:
                                     has_detection = True
                                     break
                             # Also check shape description for confidence
@@ -87,7 +88,7 @@ class FilterWorker(QObject):
                                             0
                                         ].split()[-1]
                                         confidence = float(conf_str) / 100.0
-                                        if confidence >= self.min_confidence:
+                                        if self.min_confidence <= confidence <= self.max_confidence:
                                             has_detection = True
                                             break
                                 except (ValueError, IndexError, AttributeError) as e:
@@ -186,11 +187,11 @@ class ImageFilterDialog(QDialog):
         model_layout.addWidget(self.model_combo)
         filter_options_layout.addLayout(model_layout)
 
-        # Confidence threshold slider
-        confidence_label = QLabel(self.tr("Minimum Confidence:"))
-        filter_options_layout.addWidget(confidence_label)
+        # Minimum confidence threshold slider
+        min_confidence_label = QLabel(self.tr("Minimum Confidence:"))
+        filter_options_layout.addWidget(min_confidence_label)
 
-        slider_layout = QHBoxLayout()
+        min_slider_layout = QHBoxLayout()
         self.confidence_slider = QSlider(Qt.Horizontal)
         self.confidence_slider.setMinimum(0)
         self.confidence_slider.setMaximum(100)
@@ -199,9 +200,26 @@ class ImageFilterDialog(QDialog):
         self.confidence_slider.setTickInterval(10)
         self.confidence_value_label = QLabel("0.50")
         self.confidence_slider.valueChanged.connect(self.update_confidence_label)
-        slider_layout.addWidget(self.confidence_slider)
-        slider_layout.addWidget(self.confidence_value_label)
-        filter_options_layout.addLayout(slider_layout)
+        min_slider_layout.addWidget(self.confidence_slider)
+        min_slider_layout.addWidget(self.confidence_value_label)
+        filter_options_layout.addLayout(min_slider_layout)
+
+        # Maximum confidence threshold slider
+        max_confidence_label = QLabel(self.tr("Maximum Confidence:"))
+        filter_options_layout.addWidget(max_confidence_label)
+
+        max_slider_layout = QHBoxLayout()
+        self.max_confidence_slider = QSlider(Qt.Horizontal)
+        self.max_confidence_slider.setMinimum(0)
+        self.max_confidence_slider.setMaximum(100)
+        self.max_confidence_slider.setValue(100)
+        self.max_confidence_slider.setTickPosition(QSlider.TicksBelow)
+        self.max_confidence_slider.setTickInterval(10)
+        self.max_confidence_value_label = QLabel("1.00")
+        self.max_confidence_slider.valueChanged.connect(self.update_max_confidence_label)
+        max_slider_layout.addWidget(self.max_confidence_slider)
+        max_slider_layout.addWidget(self.max_confidence_value_label)
+        filter_options_layout.addLayout(max_slider_layout)
 
         # Initially disable filter options
         self.filter_options_group.setEnabled(False)
@@ -260,10 +278,14 @@ class ImageFilterDialog(QDialog):
             self.no_filter_radio.setChecked(True)
             self.filter_options_group.setEnabled(False)
 
-        # Load confidence threshold
+        # Load confidence thresholds
         min_confidence = filter_config.get("min_confidence", 0.5)
         slider_value = int(min_confidence * 100)
         self.confidence_slider.setValue(slider_value)
+
+        max_confidence = filter_config.get("max_confidence", 1.0)
+        max_slider_value = int(max_confidence * 100)
+        self.max_confidence_slider.setValue(max_slider_value)
 
     def save_settings(self):
         """Save filter settings to config."""
@@ -275,9 +297,12 @@ class ImageFilterDialog(QDialog):
         # Save filter enabled state
         config["image_filter"]["enabled"] = self.filter_radio.isChecked()
 
-        # Save confidence threshold
+        # Save confidence thresholds
         config["image_filter"]["min_confidence"] = (
             self.confidence_slider.value() / 100.0
+        )
+        config["image_filter"]["max_confidence"] = (
+            self.max_confidence_slider.value() / 100.0
         )
 
         save_config(config)
@@ -307,6 +332,11 @@ class ImageFilterDialog(QDialog):
         """Update the confidence value label."""
         confidence = value / 100.0
         self.confidence_value_label.setText(f"{confidence:.2f}")
+
+    def update_max_confidence_label(self, value):
+        """Update the maximum confidence value label."""
+        confidence = value / 100.0
+        self.max_confidence_value_label.setText(f"{confidence:.2f}")
 
     def on_filter_mode_changed(self):
         """Handle filter mode change."""
@@ -353,17 +383,32 @@ class ImageFilterDialog(QDialog):
 
     def start_filtering(self):
         """Start the filtering process in a background thread."""
+        # Get confidence thresholds
+        min_confidence = self.confidence_slider.value() / 100.0
+        max_confidence = self.max_confidence_slider.value() / 100.0
+
+        # Validate that min <= max
+        if min_confidence > max_confidence:
+            QMessageBox.warning(
+                self,
+                self.tr("Invalid Range"),
+                self.tr(
+                    "Minimum confidence (%.2f) cannot be greater than maximum confidence (%.2f)."
+                )
+                % (min_confidence, max_confidence),
+            )
+            return
+
         # Disable buttons during processing
         self.apply_button.setEnabled(False)
         self.no_filter_radio.setEnabled(False)
         self.filter_radio.setEnabled(False)
         self.filter_options_group.setEnabled(False)
 
-        # Get confidence threshold
-        min_confidence = self.confidence_slider.value() / 100.0
-
         # Create worker and thread
-        self.worker = FilterWorker(self.image_paths, self.model_manager, min_confidence)
+        self.worker = FilterWorker(
+            self.image_paths, self.model_manager, min_confidence, max_confidence
+        )
         self.worker_thread = QThread()
         self.worker.moveToThread(self.worker_thread)
 
