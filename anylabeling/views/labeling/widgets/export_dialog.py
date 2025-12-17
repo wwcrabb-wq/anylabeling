@@ -28,6 +28,7 @@ class ExportDialog(QDialog):
 
     def __init__(self, parent=None, current_folder=None):
         super().__init__(parent)
+        self.parent_widget = parent
         self.current_folder = current_folder
         self.source_folder = current_folder
         self.output_folder = None
@@ -382,6 +383,11 @@ class ExportDialog(QDialog):
         recursive = self.recursive_check.isChecked()
         use_random_names = self.random_names_check.isChecked()
 
+        # Get checked files from parent widget if available
+        checked_files = None
+        if self.parent_widget and hasattr(self.parent_widget, "get_checked_files"):
+            checked_files = self.parent_widget.get_checked_files()
+
         # Create and start export worker
         self.export_worker = ExportWorker(
             export_format,
@@ -393,6 +399,7 @@ class ExportDialog(QDialog):
             test_ratio,
             recursive,
             use_random_names,
+            checked_files,
         )
 
         # Connect worker signals

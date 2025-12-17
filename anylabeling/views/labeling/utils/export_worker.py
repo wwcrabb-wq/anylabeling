@@ -32,6 +32,7 @@ class ExportWorker(QRunnable):
         test_ratio=0.1,
         recursive=False,
         use_random_names=False,
+        checked_files=None,
     ):
         """Initialize the export worker.
 
@@ -45,6 +46,7 @@ class ExportWorker(QRunnable):
             test_ratio: Ratio of data for test set
             recursive: Whether to scan input directory recursively
             use_random_names: Whether to use random UUID4 names for exported items
+            checked_files: List of specific image files to export (only their JSON will be exported)
         """
         super().__init__()
         self.signals = ExportSignals()
@@ -57,6 +59,7 @@ class ExportWorker(QRunnable):
         self.test_ratio = test_ratio
         self.recursive = recursive
         self.use_random_names = use_random_names
+        self.checked_files = checked_files
         self.running = False
 
     def _create_split_dirs(self):
@@ -67,12 +70,12 @@ class ExportWorker(QRunnable):
             os.makedirs(osp.join(self.output_dir, "test"), exist_ok=True)
 
             if self.export_format == "yolo":
-                # Create label directories for YOLO forma
+                # Create label directories for YOLO format
                 os.makedirs(osp.join(self.output_dir, "train", "labels"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "val", "labels"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "test", "labels"), exist_ok=True)
 
-                # Create image directories for YOLO forma
+                # Create image directories for YOLO format
                 os.makedirs(osp.join(self.output_dir, "train", "images"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "val", "images"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "test", "images"), exist_ok=True)
@@ -82,7 +85,26 @@ class ExportWorker(QRunnable):
                 os.makedirs(osp.join(self.output_dir, "images"), exist_ok=True)
 
     def _get_json_files(self):
-        """Get all JSON files in the input directory."""
+        """Get all JSON files in the input directory, or only checked files if provided."""
+        # If checked files are provided, only export those
+        if self.checked_files:
+            json_files = []
+            for image_file in self.checked_files:
+                # Get the corresponding JSON file path
+                json_file = osp.splitext(image_file)[0] + ".json"
+                # Make sure it's relative to input_dir if it's an absolute path
+                if osp.isabs(json_file):
+                    json_file = osp.relpath(json_file, self.input_dir)
+                # Validate that the relative path doesn't escape input_dir (path traversal check)
+                full_path = osp.normpath(osp.join(self.input_dir, json_file))
+                if not full_path.startswith(osp.normpath(self.input_dir)):
+                    continue
+                # Only add if the JSON file exists
+                if osp.isfile(full_path):
+                    json_files.append(json_file)
+            return json_files
+
+        # Otherwise, get all JSON files as before
         if not self.recursive:
             # Non-recursive mode: only get files from the top-level directory
             return [
@@ -144,7 +166,7 @@ class ExportWorker(QRunnable):
         if not self.split_data:
             return {"all": json_files}
 
-        # Shuffle the files for random spli
+        # Shuffle the files for random split
         random.shuffle(json_files)
         n_files = len(json_files)
 
