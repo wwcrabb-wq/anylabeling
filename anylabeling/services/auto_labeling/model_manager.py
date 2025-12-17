@@ -683,12 +683,24 @@ class ModelManager(QObject):
             self.model_execution_thread.start()
 
     def on_next_files_changed(self, next_files):
-        """Run prediction on next files in advance to save inference time later"""
+        """
+        Run prediction on next files in advance to save inference time later.
+        
+        Calls on_next_files_changed on the loaded model if the method exists.
+        Models can use this to pre-load images or pre-compute results.
+        """
         if self.loaded_model_config is None:
             return
 
-        # Currently only segment_anything model supports this feature
-        if self.loaded_model_config["type"] != "segment_anything":
-            return
-
-        self.loaded_model_config["model"].on_next_files_changed(next_files)
+        model = self.loaded_model_config.get("model")
+        if model and hasattr(model, "on_next_files_changed"):
+            # Limit number of files based on config
+            from anylabeling.config import get_config
+            config = get_config()
+            perf_config = config.get("performance", {})
+            preload_count = perf_config.get("preload_count", 3)
+            
+            # Only pass the configured number of next files
+            limited_files = next_files[:preload_count] if len(next_files) > preload_count else next_files
+            
+            model.on_next_files_changed(limited_files)
