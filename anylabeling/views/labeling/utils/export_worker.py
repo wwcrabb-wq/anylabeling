@@ -70,12 +70,12 @@ class ExportWorker(QRunnable):
             os.makedirs(osp.join(self.output_dir, "test"), exist_ok=True)
 
             if self.export_format == "yolo":
-                # Create label directories for YOLO forma
+                # Create label directories for YOLO format
                 os.makedirs(osp.join(self.output_dir, "train", "labels"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "val", "labels"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "test", "labels"), exist_ok=True)
 
-                # Create image directories for YOLO forma
+                # Create image directories for YOLO format
                 os.makedirs(osp.join(self.output_dir, "train", "images"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "val", "images"), exist_ok=True)
                 os.makedirs(osp.join(self.output_dir, "test", "images"), exist_ok=True)
@@ -162,7 +162,7 @@ class ExportWorker(QRunnable):
         if not self.split_data:
             return {"all": json_files}
 
-        # Shuffle the files for random spli
+        # Shuffle the files for random split
         random.shuffle(json_files)
         n_files = len(json_files)
 

@@ -2715,17 +2715,7 @@ class LabelingWidget(LabelDialog):
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
 
             # Check if label file has actual shapes or is marked as background
-            should_check = False
-            if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                try:
-                    with open(label_file, "r") as f:
-                        label_data = json.load(f)
-                        # Check if has shapes OR is marked as background
-                        has_shapes = len(label_data.get("shapes", [])) > 0
-                        is_background = label_data.get("is_background", False)
-                        should_check = has_shapes or is_background
-                except Exception:
-                    pass
+            should_check = self._should_check_file(label_file)
             item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             self.file_list_widget.addItem(item)
 
@@ -2765,17 +2755,7 @@ class LabelingWidget(LabelDialog):
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
 
             # Check if label file has actual shapes or is marked as background
-            should_check = False
-            if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                try:
-                    with open(label_file, "r") as f:
-                        label_data = json.load(f)
-                        # Check if has shapes OR is marked as background
-                        has_shapes = len(label_data.get("shapes", [])) > 0
-                        is_background = label_data.get("is_background", False)
-                        should_check = has_shapes or is_background
-                except Exception:
-                    pass
+            should_check = self._should_check_file(label_file)
             item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             self.file_list_widget.addItem(item)
         self.open_next_image(load=load)
@@ -2804,6 +2784,30 @@ class LabelingWidget(LabelDialog):
             if item.checkState() == Qt.Checked:
                 checked.append(item.text())
         return checked
+
+    def _should_check_file(self, label_file):
+        """Check if a label file should be checked based on shapes or background flag.
+
+        Args:
+            label_file: Path to the JSON label file
+
+        Returns:
+            bool: True if file should be checked, False otherwise
+        """
+        if not QtCore.QFile.exists(label_file) or not LabelFile.is_label_file(
+            label_file
+        ):
+            return False
+
+        try:
+            with open(label_file, "r") as f:
+                label_data = json.load(f)
+                # Check if has shapes OR is marked as background
+                has_shapes = len(label_data.get("shapes", [])) > 0
+                is_background = label_data.get("is_background", False)
+                return has_shapes or is_background
+        except (json.JSONDecodeError, FileNotFoundError, OSError):
+            return False
 
     def toggle_auto_labeling_widget(self):
         """Toggle auto labeling widget visibility."""
