@@ -1,5 +1,6 @@
 import functools
 import html
+import json
 import math
 import os
 import os.path as osp
@@ -462,6 +463,15 @@ class LabelingWidget(LabelDialog):
             self.tr("Ungroup shapes"),
             enabled=True,
         )
+        
+        toggle_background = create_action(
+            self.tr("Toggle Background Image"),
+            self.toggle_background_image,
+            shortcuts.get("toggle_background", "B"),
+            None,
+            self.tr("Mark/unmark image as background (negative sample)"),
+            enabled=False,
+        )
 
         delete = create_action(
             self.tr("Delete"),
@@ -871,10 +881,12 @@ class LabelingWidget(LabelDialog):
                 create_line_strip_mode,
                 edit_mode,
                 brightness_contrast,
+                toggle_background,
             ),
             on_shapes_present=(save_as, hide_all, show_all),
             group_selected_shapes=group_selected_shapes,
             ungroup_selected_shapes=ungroup_selected_shapes,
+            toggle_background=toggle_background,
         )
 
         self.canvas.vertex_selected.connect(self.actions.remove_point.setEnabled)
@@ -1825,7 +1837,11 @@ class LabelingWidget(LabelDialog):
             if len(items) > 0:
                 if len(items) != 1:
                     raise RuntimeError("There are duplicate files.")
-                items[0].setCheckState(Qt.Checked)
+                # Check if file should be checked (has shapes or is background)
+                has_shapes = len(shapes) > 0
+                is_background = self.other_data.get('is_background', False)
+                should_check = has_shapes or is_background
+                items[0].setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             # disable allows next and previous image to proceed
             # self.filename = filename
             return True
@@ -2561,6 +2577,38 @@ class LabelingWidget(LabelDialog):
         self._config["auto_use_last_label"] = not self._config["auto_use_last_label"]
         save_config(self._config)
 
+    def toggle_background_image(self):
+        """Toggle current image as background (negative sample)."""
+        if not self.filename:
+            return
+        
+        # Toggle is_background flag in other_data
+        current_is_background = self.other_data.get('is_background', False)
+        self.other_data['is_background'] = not current_is_background
+        
+        # Save the label file with updated is_background flag
+        if self.label_file:
+            self.save_file()
+        else:
+            # If no label file exists yet, create one
+            label_file = osp.splitext(self.filename)[0] + ".json"
+            if self.output_dir:
+                label_file_without_path = osp.basename(label_file)
+                label_file = osp.join(self.output_dir, label_file_without_path)
+            self._save_file(label_file)
+        
+        # Update checkbox in file list
+        items = self.file_list_widget.findItems(self.image_path, Qt.MatchExactly)
+        if len(items) > 0:
+            is_background = self.other_data.get('is_background', False)
+            has_shapes = len(self.canvas.shapes) > 0
+            should_check = has_shapes or is_background
+            items[0].setCheckState(Qt.Checked if should_check else Qt.Unchecked)
+        
+        # Show status message
+        status = "marked as background" if self.other_data.get('is_background', False) else "unmarked as background"
+        self.status(f"Image {status}")
+
     def remove_selected_point(self):
         self.canvas.remove_selected_point()
         self.canvas.update()
@@ -2661,10 +2709,20 @@ class LabelingWidget(LabelDialog):
                 label_file = osp.join(self.output_dir, label_file_without_path)
             item = QtWidgets.QListWidgetItem(file)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            
+            # Check if label file has actual shapes or is marked as background
+            should_check = False
             if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                item.setCheckState(Qt.Checked)
-            else:
-                item.setCheckState(Qt.Unchecked)
+                try:
+                    with open(label_file, 'r') as f:
+                        label_data = json.load(f)
+                        # Check if has shapes OR is marked as background
+                        has_shapes = len(label_data.get('shapes', [])) > 0
+                        is_background = label_data.get('is_background', False)
+                        should_check = has_shapes or is_background
+                except:
+                    pass
+            item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             self.file_list_widget.addItem(item)
 
         if len(self.image_list) > 1:
@@ -2701,10 +2759,20 @@ class LabelingWidget(LabelDialog):
                 label_file = osp.join(self.output_dir, label_file_without_path)
             item = QtWidgets.QListWidgetItem(filename)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            
+            # Check if label file has actual shapes or is marked as background
+            should_check = False
             if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                item.setCheckState(Qt.Checked)
-            else:
-                item.setCheckState(Qt.Unchecked)
+                try:
+                    with open(label_file, 'r') as f:
+                        label_data = json.load(f)
+                        # Check if has shapes OR is marked as background
+                        has_shapes = len(label_data.get('shapes', [])) > 0
+                        is_background = label_data.get('is_background', False)
+                        should_check = has_shapes or is_background
+                except:
+                    pass
+            item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             self.file_list_widget.addItem(item)
         self.open_next_image(load=load)
 
@@ -2723,6 +2791,15 @@ class LabelingWidget(LabelDialog):
                     images.append(relative_path)
         images = natsort.os_sorted(images)
         return images
+
+    def get_checked_files(self):
+        """Get list of checked files from file list widget."""
+        checked = []
+        for i in range(self.file_list_widget.count()):
+            item = self.file_list_widget.item(i)
+            if item.checkState() == Qt.Checked:
+                checked.append(item.text())
+        return checked
 
     def toggle_auto_labeling_widget(self):
         """Toggle auto labeling widget visibility."""

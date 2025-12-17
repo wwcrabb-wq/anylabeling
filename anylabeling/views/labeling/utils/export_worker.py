@@ -32,6 +32,7 @@ class ExportWorker(QRunnable):
         test_ratio=0.1,
         recursive=False,
         use_random_names=False,
+        checked_files=None,
     ):
         """Initialize the export worker.
 
@@ -45,6 +46,7 @@ class ExportWorker(QRunnable):
             test_ratio: Ratio of data for test set
             recursive: Whether to scan input directory recursively
             use_random_names: Whether to use random UUID4 names for exported items
+            checked_files: List of specific image files to export (only their JSON will be exported)
         """
         super().__init__()
         self.signals = ExportSignals()
@@ -57,6 +59,7 @@ class ExportWorker(QRunnable):
         self.test_ratio = test_ratio
         self.recursive = recursive
         self.use_random_names = use_random_names
+        self.checked_files = checked_files
         self.running = False
 
     def _create_split_dirs(self):
@@ -82,7 +85,22 @@ class ExportWorker(QRunnable):
                 os.makedirs(osp.join(self.output_dir, "images"), exist_ok=True)
 
     def _get_json_files(self):
-        """Get all JSON files in the input directory."""
+        """Get all JSON files in the input directory, or only checked files if provided."""
+        # If checked files are provided, only export those
+        if self.checked_files:
+            json_files = []
+            for image_file in self.checked_files:
+                # Get the corresponding JSON file path
+                json_file = osp.splitext(image_file)[0] + ".json"
+                # Make sure it's relative to input_dir if it's an absolute path
+                if osp.isabs(json_file):
+                    json_file = osp.relpath(json_file, self.input_dir)
+                # Only add if the JSON file exists
+                if osp.isfile(osp.join(self.input_dir, json_file)):
+                    json_files.append(json_file)
+            return json_files
+        
+        # Otherwise, get all JSON files as before
         if not self.recursive:
             # Non-recursive mode: only get files from the top-level directory
             return [
