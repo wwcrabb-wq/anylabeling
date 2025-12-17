@@ -130,3 +130,33 @@ image_filter:
 # UI settings
 ui:
   dock_state: null
+
+# Performance optimization settings
+performance:
+  # Batch processing settings
+  batch_size: 4  # Default batch size for inference
+  max_batch_size: 16  # Maximum allowed batch size
+  
+  # Threading settings
+  num_worker_threads: 8  # Number of worker threads for parallel processing
+  io_threads: 4  # Number of threads for I/O operations
+  
+  # Caching settings
+  image_cache_size_mb: 512  # Maximum image cache size in megabytes
+  enable_result_caching: true  # Enable caching of filter results
+  cache_persistence: true  # Persist cache to disk between sessions
+  
+  # Pre-loading settings
+  preload_count: 3  # Number of images to pre-load ahead
+  preload_enabled: true  # Enable image pre-loading
+  
+  # GPU Settings (when applicable)
+  preferred_backend: "auto"  # Options: auto, ultralytics, onnx-gpu, onnx-cpu, cv2.dnn
+  enable_fp16: true  # Enable FP16 precision for compatible backends
+  enable_int8: false  # Enable INT8 quantization (requires calibration)
+  gpu_memory_limit_mb: 4096  # GPU memory limit
+  
+  # Extension settings
+  use_cython_extensions: true  # Use Cython extensions if available
+  use_rust_extensions: true  # Use Rust extensions if available
+  fallback_to_python: true  # Fall back to Python implementations if extensions fail
