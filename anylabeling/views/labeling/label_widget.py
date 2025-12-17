@@ -2238,7 +2238,7 @@ class LabelingWidget(LabelDialog):
 
     def scale_fit_window(self):
         """Figure out the size of the pixmap to fit the main widget."""
-        e = 2.0  # So that no scrollbars are generated.
+        e = 10.0  # Margin to ensure no scrollbars are generated
         w1 = self.central_widget().width() - e
         h1 = self.central_widget().height() - e
         wh_ratio1 = w1 / h1
