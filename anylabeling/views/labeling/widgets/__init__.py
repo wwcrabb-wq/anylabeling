@@ -8,6 +8,7 @@ from .file_dialog_preview import FileDialogPreview
 from .image_filter_dialog import ImageFilterDialog
 from .label_dialog import LabelDialog, LabelQLineEdit
 from .label_list_widget import LabelListWidget, LabelListWidgetItem
+from .performance_settings_dialog import PerformanceSettingsDialog
 from .toolbar import ToolBar
 from .unique_label_qlist_widget import UniqueLabelQListWidget
 from .zoom_widget import ZoomWidget
