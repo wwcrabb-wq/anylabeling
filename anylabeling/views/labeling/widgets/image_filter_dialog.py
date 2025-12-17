@@ -1,6 +1,7 @@
 """Image filter dialog widget for filtering images based on YOLO detections."""
 
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 
@@ -68,6 +69,8 @@ class FilterWorker(QObject):
         self.max_workers = (
             max_workers if max_workers is not None else min(8, cpu_count())
         )
+        # Thread lock to serialize model inference (prevent concurrent access)
+        self._model_lock = threading.Lock()
 
     def _process_single_image(self, image_path):
         """Process a single image and return if it has detections."""
@@ -83,10 +86,12 @@ class FilterWorker(QObject):
             # Convert to numpy array for model
             image_array = np.array(image)
 
-            # Run prediction
-            result = self.model_manager.loaded_model_config["model"].predict_shapes(
-                image_array, image_path
-            )
+            # Run prediction with lock to prevent concurrent model access
+            # This prevents thread-safety issues with Ultralytics models
+            with self._model_lock:
+                result = self.model_manager.loaded_model_config["model"].predict_shapes(
+                    image_array, image_path
+                )
 
             # Collect matching detections
             matching_detections = []
