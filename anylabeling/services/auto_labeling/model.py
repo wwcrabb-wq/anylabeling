@@ -5,8 +5,12 @@ import socket
 import ssl
 from abc import abstractmethod
 
-from PyQt5.QtCore import QCoreApplication, QFile, QObject, QThread, pyqtSignal
+from PyQt5.QtCore import QCoreApplication, QFile, QObject, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QImage
+
+# Import for pre-loading worker
+from PIL import Image
+import numpy as np
 
 from .types import AutoLabelingResult
 from anylabeling.views.labeling.label_file import LabelFile, LabelFileError
@@ -23,6 +27,9 @@ ssl._create_default_https_context = (
     ssl._create_unverified_context
 )  # Prevent issue when downloading models behind a proxy
 
+# Default cache size in MB
+DEFAULT_CACHE_SIZE_MB = 512
+
 
 class PreloadWorker(QObject):
     """Worker for pre-loading images in background thread."""
@@ -35,7 +42,8 @@ class PreloadWorker(QObject):
         self.file_paths = file_paths
         self.image_cache = image_cache
         self.is_cancelled = False
-        
+    
+    @pyqtSlot()
     def run(self):
         """Pre-load images into cache."""
         try:
@@ -48,10 +56,7 @@ class PreloadWorker(QObject):
                     continue
                 
                 try:
-                    # Load image
-                    from PIL import Image
-                    import numpy as np
-                    
+                    # Load image (PIL and numpy imported at module level)
                     img = Image.open(file_path)
                     if img.mode != "RGB":
                         img = img.convert("RGB")
@@ -195,12 +200,12 @@ class Model(QObject):
         try:
             config = get_config()
             perf_config = config.get("performance", {})
-            cache_size_mb = perf_config.get("image_cache_size_mb", 512)
+            cache_size_mb = perf_config.get("image_cache_size_mb", DEFAULT_CACHE_SIZE_MB)
             self.image_cache = ImageCache(max_memory_mb=cache_size_mb)
             logging.info(f"Image cache initialized with {cache_size_mb}MB")
         except Exception as e:
             logging.warning(f"Failed to initialize image cache: {e}")
-            self.image_cache = ImageCache(max_memory_mb=512)  # Default fallback
+            self.image_cache = ImageCache(max_memory_mb=DEFAULT_CACHE_SIZE_MB)  # Default fallback
 
     def on_next_files_changed(self, next_files):
         """
@@ -221,8 +226,9 @@ class Model(QObject):
         # Cancel previous pre-loading if active
         if self.preload_worker and self.preload_thread:
             self.preload_worker.cancel()
-            self.preload_thread.quit()
-            self.preload_thread.wait()
+            if self.preload_thread.isRunning():
+                self.preload_thread.quit()
+                self.preload_thread.wait()
         
         # Get preload count from config
         preload_count = perf_config.get("preload_count", 3)
