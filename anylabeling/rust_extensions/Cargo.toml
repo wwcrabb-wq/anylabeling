@@ -1,0 +1,25 @@
+[package]
+name = "anylabeling_rust"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+description = "High-performance Rust extensions for AnyLabeling"
+authors = ["AnyLabeling Contributors"]
+
+[lib]
+name = "anylabeling_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+numpy = "0.20"
+rayon = "1.8"
+image = { version = "0.24", default-features = false, features = ["jpeg", "png", "bmp", "tiff", "webp"] }
+memmap2 = "0.9"
+walkdir = "2.4"
+crossbeam-channel = "0.5"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
