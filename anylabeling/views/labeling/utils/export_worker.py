@@ -95,8 +95,12 @@ class ExportWorker(QRunnable):
                 # Make sure it's relative to input_dir if it's an absolute path
                 if osp.isabs(json_file):
                     json_file = osp.relpath(json_file, self.input_dir)
+                # Validate that the relative path doesn't escape input_dir (path traversal check)
+                full_path = osp.normpath(osp.join(self.input_dir, json_file))
+                if not full_path.startswith(osp.normpath(self.input_dir)):
+                    continue
                 # Only add if the JSON file exists
-                if osp.isfile(osp.join(self.input_dir, json_file)):
+                if osp.isfile(full_path):
                     json_files.append(json_file)
             return json_files
 

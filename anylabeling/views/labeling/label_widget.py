@@ -2800,7 +2800,7 @@ class LabelingWidget(LabelDialog):
             return False
 
         try:
-            with open(label_file, "r") as f:
+            with open(label_file, "r", encoding="utf-8") as f:
                 label_data = json.load(f)
                 # Check if has shapes OR is marked as background
                 has_shapes = len(label_data.get("shapes", [])) > 0
