@@ -32,6 +32,7 @@ class ExportWorker(QRunnable):
         test_ratio=0.1,
         recursive=False,
         use_random_names=False,
+        checked_files=None,
     ):
         """Initialize the export worker.
 
@@ -45,6 +46,7 @@ class ExportWorker(QRunnable):
             test_ratio: Ratio of data for test set
             recursive: Whether to scan input directory recursively
             use_random_names: Whether to use random UUID4 names for exported items
+            checked_files: List of specific image files to export (if None, export all)
         """
         super().__init__()
         self.signals = ExportSignals()
@@ -57,6 +59,7 @@ class ExportWorker(QRunnable):
         self.test_ratio = test_ratio
         self.recursive = recursive
         self.use_random_names = use_random_names
+        self.checked_files = checked_files or []
         self.running = False
 
     def _create_split_dirs(self):
@@ -83,6 +86,18 @@ class ExportWorker(QRunnable):
 
     def _get_json_files(self):
         """Get all JSON files in the input directory."""
+        # If checked_files list is provided, use only those files
+        if self.checked_files:
+            json_files = []
+            for image_file in self.checked_files:
+                # Convert image file to corresponding JSON file
+                json_file = osp.splitext(osp.basename(image_file))[0] + ".json"
+                # Check if the JSON file exists
+                json_path = osp.join(self.input_dir, json_file)
+                if osp.isfile(json_path):
+                    json_files.append(json_file)
+            return json_files
+        
         if not self.recursive:
             # Non-recursive mode: only get files from the top-level directory
             return [

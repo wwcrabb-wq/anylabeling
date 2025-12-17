@@ -26,11 +26,12 @@ from ..utils.export_worker import ExportWorker
 class ExportDialog(QDialog):
     """Dialog for exporting annotations to different formats."""
 
-    def __init__(self, parent=None, current_folder=None):
+    def __init__(self, parent=None, current_folder=None, checked_files=None):
         super().__init__(parent)
         self.current_folder = current_folder
         self.source_folder = current_folder
         self.output_folder = None
+        self.checked_files = checked_files or []
         self.thread_pool = QThreadPool()
         self.export_worker = None
         self.setMinimumWidth(600)
@@ -393,6 +394,7 @@ class ExportDialog(QDialog):
             test_ratio,
             recursive,
             use_random_names,
+            self.checked_files,
         )
 
         # Connect worker signals
