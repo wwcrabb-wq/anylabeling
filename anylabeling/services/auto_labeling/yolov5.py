@@ -235,6 +235,64 @@ class YOLOv5(Model):
         result = AutoLabelingResult(shapes, replace=True)
         return result
 
+    def predict_shapes_batch(self, images, image_paths=None):
+        """
+        Predict shapes from multiple images in a batch for improved performance.
+
+        Args:
+            images: List of images (numpy arrays or QImage objects)
+            image_paths: Optional list of image file paths
+
+        Returns:
+            List of AutoLabelingResult objects, one per image
+        """
+        if not images:
+            return []
+
+        if image_paths is None:
+            image_paths = [None] * len(images)
+
+        # Convert all images to cv2 format
+        cv_images = []
+        for img, img_path in zip(images, image_paths):
+            if img is None:
+                cv_images.append(None)
+                continue
+            try:
+                cv_img = qt_img_to_rgb_cv_img(img, img_path)
+                cv_images.append(cv_img)
+            except Exception as e:
+                logging.warning("Could not convert image: %s", e)
+                cv_images.append(None)
+
+        # Process batch
+        if self.use_ultralytics and self.ultralytics_model:
+            # Ultralytics can process batches natively
+            all_boxes = self._predict_ultralytics_batch(cv_images)
+        else:
+            # For cv2.dnn, process individually (batch support limited)
+            all_boxes = []
+            for cv_img in cv_images:
+                if cv_img is not None:
+                    detections = self.pre_process(cv_img, self.net)
+                    boxes = self.post_process(cv_img, detections)
+                    all_boxes.append(boxes)
+                else:
+                    all_boxes.append([])
+
+        # Convert to shapes
+        results = []
+        for boxes in all_boxes:
+            shapes = []
+            for box in boxes:
+                shape = Shape(label=box["label"], shape_type="rectangle", flags={})
+                shape.add_point(QtCore.QPointF(box["x1"], box["y1"]))
+                shape.add_point(QtCore.QPointF(box["x2"], box["y2"]))
+                shapes.append(shape)
+            results.append(AutoLabelingResult(shapes, replace=True))
+
+        return results
+
     def _predict_ultralytics(self, image):
         """
         Run prediction using ultralytics model
@@ -280,6 +338,79 @@ class YOLOv5(Model):
         except Exception as e:
             logging.warning(f"Ultralytics prediction failed: {e}")
             return []
+
+    def _predict_ultralytics_batch(self, images):
+        """
+        Run batch prediction using ultralytics model for improved performance.
+
+        Args:
+            images: List of cv2 images (numpy arrays)
+
+        Returns:
+            List of lists of boxes, one per image
+        """
+        try:
+            # Filter out None images and track indices
+            valid_images = []
+            valid_indices = []
+            for idx, img in enumerate(images):
+                if img is not None:
+                    valid_images.append(img)
+                    valid_indices.append(idx)
+
+            if not valid_images:
+                return [[] for _ in images]
+
+            # Read thresholds from config at prediction time for live updates
+            conf_threshold = self.config.get("confidence_threshold", 0.25)
+            nms_threshold = self.config.get("nms_threshold", 0.45)
+
+            # Run batch prediction
+            results = self.ultralytics_model.predict(
+                source=valid_images,
+                conf=conf_threshold,
+                iou=nms_threshold,
+                verbose=False,
+            )
+
+            # Initialize results for all images
+            all_boxes = [[] for _ in images]
+
+            # Process results for valid images
+            for result_idx, result in enumerate(results):
+                boxes = []
+                if result.boxes is not None:
+                    for box in result.boxes:
+                        # Extract box coordinates
+                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                        conf = float(box.conf[0].cpu().numpy())
+                        cls_id = int(box.cls[0].cpu().numpy())
+
+                        # Get label from classes or use default
+                        if cls_id < len(self.classes):
+                            label = self.classes[cls_id]
+                        else:
+                            label = f"AUTOLABEL_OBJECT_{cls_id}"
+
+                        boxes.append(
+                            {
+                                "x1": int(x1),
+                                "y1": int(y1),
+                                "x2": int(x2),
+                                "y2": int(y2),
+                                "label": label,
+                                "score": conf,
+                            }
+                        )
+
+                # Map back to original index
+                original_idx = valid_indices[result_idx]
+                all_boxes[original_idx] = boxes
+
+            return all_boxes
+        except Exception as e:
+            logging.warning("Ultralytics batch prediction failed: %s", e)
+            return [[] for _ in images]
 
     def unload(self):
         if self.net is not None:

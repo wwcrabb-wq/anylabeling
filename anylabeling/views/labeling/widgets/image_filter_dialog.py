@@ -1,6 +1,8 @@
 """Image filter dialog widget for filtering images based on YOLO detections."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from multiprocessing import cpu_count
 
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 from PyQt5.QtWidgets import (
@@ -25,103 +27,137 @@ logger = logging.getLogger(__name__)
 
 
 class FilterWorker(QObject):
-    """Worker for filtering images in background thread."""
+    """Worker for filtering images in background thread with parallel processing."""
 
     progress = pyqtSignal(int, int, int)  # current, total, matched
     finished = pyqtSignal(list)  # filtered image list
     error = pyqtSignal(str)
 
-    def __init__(self, image_paths, model_manager, min_confidence, max_confidence=1.0):
+    def __init__(
+        self,
+        image_paths,
+        model_manager,
+        min_confidence,
+        max_confidence=1.0,
+        max_workers=None,
+    ):
         super().__init__()
         self.image_paths = image_paths
         self.model_manager = model_manager
         self.min_confidence = min_confidence
         self.max_confidence = max_confidence
         self.is_cancelled = False
+        # Use configurable worker threads (default: min(8, cpu_count()))
+        self.max_workers = (
+            max_workers if max_workers is not None else min(8, cpu_count())
+        )
 
-    def run(self):
-        """Run filtering process."""
+    def _process_single_image(self, image_path):
+        """Process a single image and return if it has detections."""
         try:
             from PIL import Image
             import numpy as np
 
-            filtered_images = []
+            # Load image
+            image = Image.open(image_path)
+            if image.mode != "RGB":
+                image = image.convert("RGB")
 
-            for idx, image_path in enumerate(self.image_paths):
-                if self.is_cancelled:
-                    break
+            # Convert to numpy array for model
+            image_array = np.array(image)
 
-                try:
-                    # Load image
-                    image = Image.open(image_path)
-                    if image.mode != "RGB":
-                        image = image.convert("RGB")
+            # Run prediction
+            result = self.model_manager.loaded_model_config["model"].predict_shapes(
+                image_array, image_path
+            )
 
-                    # Convert to numpy array for model
-                    image_array = np.array(image)
-
-                    # Run prediction
-                    result = self.model_manager.loaded_model_config[
-                        "model"
-                    ].predict_shapes(image_array, image_path)
-
-                    # Check if any detection meets threshold
-                    has_detection = False
-                    if result and hasattr(result, "shapes"):
-                        for shape in result.shapes:
-                            # Check if shape has score attribute and meets threshold
-                            if hasattr(shape, "score") and shape.score is not None:
-                                if self.min_confidence <= shape.score <= self.max_confidence:
+            # Check if any detection meets threshold
+            has_detection = False
+            if result and hasattr(result, "shapes"):
+                for shape in result.shapes:
+                    # Check if shape has score attribute and meets threshold
+                    if hasattr(shape, "score") and shape.score is not None:
+                        if self.min_confidence <= shape.score <= self.max_confidence:
+                            has_detection = True
+                            break
+                    # Also check shape description for confidence
+                    elif hasattr(shape, "description") and shape.description:
+                        try:
+                            # Try to extract confidence from description
+                            # Expected format: "label XX%" where XX is confidence percentage
+                            # e.g., "person 85%", "car 92%"
+                            if (
+                                isinstance(shape.description, str)
+                                and "%" in shape.description
+                            ):
+                                conf_str = shape.description.split("%")[0].split()[-1]
+                                confidence = float(conf_str) / 100.0
+                                if (
+                                    self.min_confidence
+                                    <= confidence
+                                    <= self.max_confidence
+                                ):
                                     has_detection = True
                                     break
-                            # Also check shape description for confidence
-                            elif hasattr(shape, "description") and shape.description:
-                                try:
-                                    # Try to extract confidence from description
-                                    # Expected format: "label XX%" where XX is confidence percentage
-                                    # e.g., "person 85%", "car 92%"
-                                    if (
-                                        isinstance(shape.description, str)
-                                        and "%" in shape.description
-                                    ):
-                                        conf_str = shape.description.split("%")[
-                                            0
-                                        ].split()[-1]
-                                        confidence = float(conf_str) / 100.0
-                                        if self.min_confidence <= confidence <= self.max_confidence:
-                                            has_detection = True
-                                            break
-                                except (ValueError, IndexError, AttributeError) as e:
-                                    # If can't parse confidence, log and skip this detection
-                                    logger.debug(
-                                        "Could not parse confidence from shape description '%s': %s",
-                                        shape.description,
-                                        e,
-                                    )
-                                    # Don't assume it passes - continue checking other shapes
-                                    continue
-                            else:
-                                # If no score info, assume it passes threshold
-                                # This is a fallback for models that don't provide confidence scores
-                                # Note: When max_confidence < 1.0, this bypasses the max threshold
-                                # check since we have no confidence value to compare against
-                                logger.debug(
-                                    "No confidence score found for shape, including by default"
-                                )
-                                has_detection = True
-                                break
+                        except (ValueError, IndexError, AttributeError) as e:
+                            # If can't parse confidence, log and skip this detection
+                            logger.debug(
+                                "Could not parse confidence from shape description '%s': %s",
+                                shape.description,
+                                e,
+                            )
+                            # Don't assume it passes - continue checking other shapes
+                            continue
+                    else:
+                        # If no score info, assume it passes threshold
+                        # This is a fallback for models that don't provide confidence scores
+                        # Note: When max_confidence < 1.0, this bypasses the max threshold
+                        # check since we have no confidence value to compare against
+                        logger.debug(
+                            "No confidence score found for shape, including by default"
+                        )
+                        has_detection = True
+                        break
 
-                    if has_detection:
-                        filtered_images.append(image_path)
+            return (image_path, has_detection)
 
-                    # Emit progress
-                    self.progress.emit(
-                        idx + 1, len(self.image_paths), len(filtered_images)
-                    )
+        except Exception as e:
+            logger.warning("Error processing %s: %s", image_path, e)
+            return (image_path, False)
 
-                except Exception as e:
-                    logger.warning("Error processing %s: %s", image_path, e)
-                    continue
+    def run(self):
+        """Run filtering process with parallel processing."""
+        try:
+            filtered_images = []
+            completed = 0
+            total = len(self.image_paths)
+
+            # Use ThreadPoolExecutor for parallel processing
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                # Submit all tasks
+                future_to_path = {
+                    executor.submit(self._process_single_image, path): path
+                    for path in self.image_paths
+                }
+
+                # Process completed tasks
+                for future in as_completed(future_to_path):
+                    if self.is_cancelled:
+                        # Cancel remaining tasks
+                        for f in future_to_path:
+                            f.cancel()
+                        break
+
+                    try:
+                        image_path, has_detection = future.result()
+                        if has_detection:
+                            filtered_images.append(image_path)
+                    except Exception as e:
+                        logger.error("Error processing image: %s", e)
+
+                    completed += 1
+                    # Emit progress (thread-safe)
+                    self.progress.emit(completed, total, len(filtered_images))
 
             if not self.is_cancelled:
                 self.finished.emit(filtered_images)
@@ -217,7 +253,9 @@ class ImageFilterDialog(QDialog):
         self.max_confidence_slider.setTickPosition(QSlider.TicksBelow)
         self.max_confidence_slider.setTickInterval(10)
         self.max_confidence_value_label = QLabel("1.00")
-        self.max_confidence_slider.valueChanged.connect(self.update_max_confidence_label)
+        self.max_confidence_slider.valueChanged.connect(
+            self.update_max_confidence_label
+        )
         max_slider_layout.addWidget(self.max_confidence_slider)
         max_slider_layout.addWidget(self.max_confidence_value_label)
         filter_options_layout.addLayout(max_slider_layout)
