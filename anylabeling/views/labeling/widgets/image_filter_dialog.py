@@ -215,15 +215,22 @@ class FilterWorker(QObject):
 class ImageFilterDialog(QDialog):
     """Dialog for filtering images based on detections."""
 
-    def __init__(self, parent=None, model_manager=None, image_paths=None):
+    def __init__(self, parent=None, model_manager=None, image_paths=None, folder_path=None):
         super().__init__(parent)
         self.model_manager = model_manager
         self.image_paths = image_paths or []
+        self.folder_path = folder_path  # Store folder path for caching
         self.filtered_images = None
         self.filtered_results = {}  # Store detailed results for export
         self.worker = None
         self.worker_thread = None
         self.thumbnail_widgets = []  # Store thumbnail widgets
+        self.cache_used = False  # Track if results came from cache
+
+        # Initialize filter result cache
+        from anylabeling.utils.image_cache import FilterResultCache
+
+        self.result_cache = FilterResultCache()
 
         self.setWindowTitle(self.tr("Image Filter Options"))
         self.setMinimumWidth(700)
@@ -421,8 +428,17 @@ class ImageFilterDialog(QDialog):
 
         layout.addWidget(preview_group)
 
+        # Cache status label
+        self.cache_status_label = QLabel("")
+        layout.addWidget(self.cache_status_label)
+
         # Buttons
         button_layout = QHBoxLayout()
+        
+        self.clear_cache_button = QPushButton(self.tr("Clear Cache"))
+        self.clear_cache_button.clicked.connect(self.on_clear_cache)
+        button_layout.addWidget(self.clear_cache_button)
+        
         button_layout.addStretch()
 
         self.export_button = QPushButton(self.tr("Export Results"))
@@ -713,6 +729,25 @@ class ImageFilterDialog(QDialog):
             selected_classes.append(item.text())
         return selected_classes if selected_classes else None
 
+    def on_clear_cache(self):
+        """Clear the filter result cache."""
+        reply = QMessageBox.question(
+            self,
+            self.tr("Clear Cache"),
+            self.tr("Are you sure you want to clear the filter result cache?"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if reply == QMessageBox.Yes:
+            self.result_cache.clear()
+            QMessageBox.information(
+                self,
+                self.tr("Cache Cleared"),
+                self.tr("Filter result cache has been cleared."),
+            )
+            self.cache_status_label.setText("")
+
     def load_settings(self):
         """Load filter settings from config."""
         config = get_config()
@@ -886,8 +921,60 @@ class ImageFilterDialog(QDialog):
         count_mode = self.count_mode_combo.currentData()
         count_value = self.count_value_spinner.value()
 
+        # Check if result caching is enabled
+        config = get_config()
+        perf_config = config.get("performance", {})
+        enable_caching = perf_config.get("enable_result_caching", True)
+
+        # Try to get from cache if enabled and folder path is available
+        if enable_caching and self.folder_path:
+            model_name = "unknown"
+            if self.model_manager and self.model_manager.loaded_model_config:
+                model_name = self.model_manager.loaded_model_config.get("name", "unknown")
+
+            cached_result = self.result_cache.get(
+                self.folder_path,
+                model_name,
+                min_confidence,
+                max_confidence,
+                selected_classes,
+                count_mode,
+                count_value,
+            )
+
+            if cached_result:
+                # Use cached results
+                filtered_images = cached_result.get("filtered_images", [])
+                self.filtered_images = filtered_images
+                self.cache_used = True
+
+                # Update UI
+                self.update_thumbnails(filtered_images)
+                self.export_button.setVisible(True)
+                self.progress_bar.setValue(100)
+                self.progress_label.setText(self.tr("Loaded from cache"))
+                self.matched_label.setText(self.tr("Matched: %d images") % len(filtered_images))
+                
+                # Show cache status
+                cache_stats = self.result_cache.get_stats()
+                self.cache_status_label.setText(
+                    self.tr("✓ Results from cache (hit rate: %.1f%%)") % (cache_stats["hit_rate"] * 100)
+                )
+
+                # Show summary
+                QMessageBox.information(
+                    self,
+                    self.tr("Filtering Complete (Cached)"),
+                    self.tr("Found %d images with detections out of %d total images.\n(Results loaded from cache)")
+                    % (len(filtered_images), len(self.image_paths)),
+                )
+
+                return  # Don't start filtering
+
         # Clear previous thumbnails
         self.clear_thumbnails()
+        self.cache_used = False
+        self.cache_status_label.setText("")
 
         # Disable buttons during processing
         self.apply_button.setEnabled(False)
@@ -933,6 +1020,43 @@ class ImageFilterDialog(QDialog):
         self.filtered_images = filtered_images
         self.worker_thread.quit()
         self.worker_thread.wait()
+
+        # Save to cache if enabled and folder path is available
+        config = get_config()
+        perf_config = config.get("performance", {})
+        enable_caching = perf_config.get("enable_result_caching", True)
+
+        if enable_caching and self.folder_path:
+            model_name = "unknown"
+            if self.model_manager and self.model_manager.loaded_model_config:
+                model_name = self.model_manager.loaded_model_config.get("name", "unknown")
+
+            # Get filter settings
+            min_confidence = self.confidence_slider.value() / 100.0
+            max_confidence = self.max_confidence_slider.value() / 100.0
+            selected_classes = self.get_selected_classes()
+            count_mode = self.count_mode_combo.currentData()
+            count_value = self.count_value_spinner.value()
+
+            # Save to cache
+            self.result_cache.put(
+                self.folder_path,
+                model_name,
+                min_confidence,
+                max_confidence,
+                selected_classes,
+                count_mode,
+                count_value,
+                filtered_images,
+                len(self.image_paths),
+            )
+
+            # Update cache status
+            cache_stats = self.result_cache.get_stats()
+            self.cache_status_label.setText(
+                self.tr("✓ Results cached (%d entries, %.1fMB)") 
+                % (cache_stats["entries"], cache_stats["size_mb"])
+            )
 
         # Update thumbnails
         self.update_thumbnails(filtered_images)
