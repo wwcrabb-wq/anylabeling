@@ -103,7 +103,8 @@ class FilterWorker(QObject):
                             else:
                                 # If no score info, assume it passes threshold
                                 # This is a fallback for models that don't provide confidence scores
-                                # Note: This may lead to false positives with some models
+                                # Note: When max_confidence < 1.0, this bypasses the max threshold
+                                # check since we have no confidence value to compare against
                                 logger.debug(
                                     "No confidence score found for shape, including by default"
                                 )
