@@ -463,7 +463,7 @@ class LabelingWidget(LabelDialog):
             self.tr("Ungroup shapes"),
             enabled=True,
         )
-        
+
         toggle_background = create_action(
             self.tr("Toggle Background Image"),
             self.toggle_background_image,
@@ -1839,7 +1839,7 @@ class LabelingWidget(LabelDialog):
                     raise RuntimeError("There are duplicate files.")
                 # Check if file should be checked (has shapes or is background)
                 has_shapes = len(shapes) > 0
-                is_background = self.other_data.get('is_background', False)
+                is_background = self.other_data.get("is_background", False)
                 should_check = has_shapes or is_background
                 items[0].setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             # disable allows next and previous image to proceed
@@ -2581,11 +2581,11 @@ class LabelingWidget(LabelDialog):
         """Toggle current image as background (negative sample)."""
         if not self.filename:
             return
-        
+
         # Toggle is_background flag in other_data
-        current_is_background = self.other_data.get('is_background', False)
-        self.other_data['is_background'] = not current_is_background
-        
+        current_is_background = self.other_data.get("is_background", False)
+        self.other_data["is_background"] = not current_is_background
+
         # Save the label file with updated is_background flag
         if self.label_file:
             self.save_file()
@@ -2596,17 +2596,21 @@ class LabelingWidget(LabelDialog):
                 label_file_without_path = osp.basename(label_file)
                 label_file = osp.join(self.output_dir, label_file_without_path)
             self._save_file(label_file)
-        
+
         # Update checkbox in file list
         items = self.file_list_widget.findItems(self.image_path, Qt.MatchExactly)
         if len(items) > 0:
-            is_background = self.other_data.get('is_background', False)
+            is_background = self.other_data.get("is_background", False)
             has_shapes = len(self.canvas.shapes) > 0
             should_check = has_shapes or is_background
             items[0].setCheckState(Qt.Checked if should_check else Qt.Unchecked)
-        
+
         # Show status message
-        status = "marked as background" if self.other_data.get('is_background', False) else "unmarked as background"
+        status = (
+            "marked as background"
+            if self.other_data.get("is_background", False)
+            else "unmarked as background"
+        )
         self.status(f"Image {status}")
 
     def remove_selected_point(self):
@@ -2709,18 +2713,18 @@ class LabelingWidget(LabelDialog):
                 label_file = osp.join(self.output_dir, label_file_without_path)
             item = QtWidgets.QListWidgetItem(file)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            
+
             # Check if label file has actual shapes or is marked as background
             should_check = False
             if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
                 try:
-                    with open(label_file, 'r') as f:
+                    with open(label_file, "r") as f:
                         label_data = json.load(f)
                         # Check if has shapes OR is marked as background
-                        has_shapes = len(label_data.get('shapes', [])) > 0
-                        is_background = label_data.get('is_background', False)
+                        has_shapes = len(label_data.get("shapes", [])) > 0
+                        is_background = label_data.get("is_background", False)
                         should_check = has_shapes or is_background
-                except:
+                except Exception:
                     pass
             item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             self.file_list_widget.addItem(item)
@@ -2759,18 +2763,18 @@ class LabelingWidget(LabelDialog):
                 label_file = osp.join(self.output_dir, label_file_without_path)
             item = QtWidgets.QListWidgetItem(filename)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            
+
             # Check if label file has actual shapes or is marked as background
             should_check = False
             if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
                 try:
-                    with open(label_file, 'r') as f:
+                    with open(label_file, "r") as f:
                         label_data = json.load(f)
                         # Check if has shapes OR is marked as background
-                        has_shapes = len(label_data.get('shapes', [])) > 0
-                        is_background = label_data.get('is_background', False)
+                        has_shapes = len(label_data.get("shapes", [])) > 0
+                        is_background = label_data.get("is_background", False)
                         should_check = has_shapes or is_background
-                except:
+                except Exception:
                     pass
             item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
             self.file_list_widget.addItem(item)

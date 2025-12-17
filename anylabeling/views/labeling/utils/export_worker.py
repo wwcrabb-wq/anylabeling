@@ -99,7 +99,7 @@ class ExportWorker(QRunnable):
                 if osp.isfile(osp.join(self.input_dir, json_file)):
                     json_files.append(json_file)
             return json_files
-        
+
         # Otherwise, get all JSON files as before
         if not self.recursive:
             # Non-recursive mode: only get files from the top-level directory

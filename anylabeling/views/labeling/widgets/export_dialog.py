@@ -385,7 +385,7 @@ class ExportDialog(QDialog):
 
         # Get checked files from parent widget if available
         checked_files = None
-        if self.parent_widget and hasattr(self.parent_widget, 'get_checked_files'):
+        if self.parent_widget and hasattr(self.parent_widget, "get_checked_files"):
             checked_files = self.parent_widget.get_checked_files()
 
         # Create and start export worker
