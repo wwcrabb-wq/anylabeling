@@ -98,6 +98,11 @@ class YOLOv8(Model):
 
         self.classes = self.config["classes"]
 
+        # Initialize pre-loading support
+        self.preload_thread = None
+        self.preload_cancel_flag = False
+        self._preload_lock = None
+
     def pre_process(self, input_image, net):
         """
         Pre-process the input image before feeding it to the network.
@@ -408,6 +413,11 @@ class YOLOv8(Model):
             return [[] for _ in images]
 
     def unload(self):
+        # Cancel any running pre-load
+        self.preload_cancel_flag = True
+        if self.preload_thread and self.preload_thread.is_alive():
+            self.preload_thread.join(timeout=1.0)
+        
         if self.net is not None:
             del self.net
         if self.ultralytics_model is not None:
@@ -419,3 +429,67 @@ class YOLOv8(Model):
         Can be extended in the future for specific parameter handling.
         """
         pass
+
+    def on_next_files_changed(self, next_files):
+        """
+        Handle next files changed. Pre-load images in background.
+        
+        Args:
+            next_files: List of file paths to pre-load
+        """
+        import threading
+        from anylabeling.config import get_config
+        from anylabeling.utils.image_cache import ImageCache
+
+        # Check if pre-loading is enabled
+        config = get_config()
+        perf_config = config.get("performance", {})
+        if not perf_config.get("preload_enabled", True):
+            return
+
+        # Cancel any existing pre-load operation
+        self.preload_cancel_flag = True
+        if self.preload_thread and self.preload_thread.is_alive():
+            self.preload_thread.join(timeout=0.1)  # Quick check, don't block
+
+        # Reset cancel flag for new operation
+        self.preload_cancel_flag = False
+
+        # Get or create image cache
+        if not hasattr(self, '_image_cache'):
+            cache_size_mb = perf_config.get("image_cache_size_mb", 512)
+            self._image_cache = ImageCache(max_memory_mb=cache_size_mb)
+
+        def preload_worker():
+            """Worker function to pre-load images in background."""
+            from PIL import Image
+            import numpy as np
+
+            for file_path in next_files:
+                if self.preload_cancel_flag:
+                    break
+
+                try:
+                    # Check if already cached
+                    if file_path in self._image_cache:
+                        continue
+
+                    # Load image
+                    image = Image.open(file_path)
+                    if image.mode != "RGB":
+                        image = image.convert("RGB")
+
+                    # Convert to numpy array
+                    image_array = np.array(image)
+
+                    # Cache the image
+                    self._image_cache.put(file_path, image_array)
+                    
+                    logging.debug("Pre-loaded image: %s", file_path)
+
+                except Exception as e:
+                    logging.debug("Failed to pre-load %s: %s", file_path, e)
+
+        # Start pre-loading in background thread
+        self.preload_thread = threading.Thread(target=preload_worker, daemon=True)
+        self.preload_thread.start()

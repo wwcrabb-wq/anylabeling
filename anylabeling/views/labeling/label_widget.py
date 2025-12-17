@@ -909,6 +909,14 @@ class LabelingWidget(LabelDialog):
             self.tr("Export annotations to other formats"),
         )
 
+        performance_settings = create_action(
+            self.tr("Performance Settings..."),
+            self.show_performance_settings,
+            None,
+            "settings",
+            self.tr("Configure performance settings"),
+        )
+
         # Store theme actions for later use
         theme_actions = (select_theme_system, select_theme_light, select_theme_dark)
 
@@ -963,7 +971,7 @@ class LabelingWidget(LabelDialog):
         )
         utils.add_actions(
             self.menus.tools,
-            (export_annotations,),
+            (export_annotations, performance_settings),
         )
         utils.add_actions(
             self.menus.language,
@@ -3020,6 +3028,15 @@ class LabelingWidget(LabelDialog):
 
         # Create and show export dialog
         dialog = ExportDialog(self, current_dir)
+        dialog.exec_()
+
+    def show_performance_settings(self):
+        """Open performance settings dialog."""
+        from anylabeling.views.labeling.widgets.performance_settings_dialog import (
+            PerformanceSettingsDialog,
+        )
+
+        dialog = PerformanceSettingsDialog(self)
         dialog.exec_()
 
     def toggle_tools(self):
