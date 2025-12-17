@@ -27,7 +27,7 @@ class ParallelImageLoader:
             max_workers = min(8, cpu_count())
         self.max_workers = max_workers
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        logger.info(f"ParallelImageLoader initialized with {max_workers} workers")
+        logger.info("ParallelImageLoader initialized with %d workers", max_workers)
 
     def load_images(
         self, image_paths: List[str], convert_to_rgb: bool = True
@@ -50,7 +50,7 @@ class ParallelImageLoader:
                     img = img.convert("RGB")
                 return np.array(img)
             except Exception as e:
-                logger.warning(f"Failed to load image {path}: {e}")
+                logger.warning("Failed to load image %s: %s", path, e)
                 return None
 
         # Submit all tasks
@@ -66,7 +66,7 @@ class ParallelImageLoader:
             try:
                 results[idx] = future.result()
             except Exception as e:
-                logger.error(f"Error loading image at index {idx}: {e}")
+                logger.error("Error loading image at index %d: %s", idx, e)
                 results[idx] = None
 
         return results
@@ -96,7 +96,7 @@ class ParallelImageLoader:
                     callback(idx, result)
                 return result
             except Exception as e:
-                logger.warning(f"Failed to load image {path}: {e}")
+                logger.warning("Failed to load image %s: %s", path, e)
                 if callback:
                     callback(idx, None)
                 return None
@@ -141,7 +141,7 @@ class BatchProcessor:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self._results_queue = queue.Queue()
         self._lock = threading.Lock()
-        logger.info(f"BatchProcessor initialized with {max_workers} workers")
+        logger.info("BatchProcessor initialized with %d workers", max_workers)
 
     def process_items(
         self,
@@ -182,7 +182,7 @@ class BatchProcessor:
                     progress_callback(completed[0], total)
             except Exception as e:
                 idx = futures[future]
-                logger.error(f"Error processing item at index {idx}: {e}")
+                logger.error("Error processing item at index %d: %s", idx, e)
                 results[idx] = None
                 completed[0] += 1
                 if progress_callback:

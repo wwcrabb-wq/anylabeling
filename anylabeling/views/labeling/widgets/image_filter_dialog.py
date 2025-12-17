@@ -153,7 +153,7 @@ class FilterWorker(QObject):
                         if has_detection:
                             filtered_images.append(image_path)
                     except Exception as e:
-                        logger.error(f"Error processing image: {e}")
+                        logger.error("Error processing image: %s", e)
 
                     completed += 1
                     # Emit progress (thread-safe)

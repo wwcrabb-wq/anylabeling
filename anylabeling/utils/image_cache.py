@@ -26,7 +26,7 @@ class ImageCache:
         self._lock = threading.Lock()
         self._hits = 0
         self._misses = 0
-        logger.info(f"ImageCache initialized with {max_memory_mb}MB limit")
+        logger.info("ImageCache initialized with %dMB limit", max_memory_mb)
 
     def get(self, key: str) -> Optional[np.ndarray]:
         """
@@ -81,7 +81,7 @@ class ImageCache:
             ) > self.max_memory_bytes and self._cache:
                 oldest_key, oldest_value = self._cache.popitem(last=False)
                 self.current_memory_bytes -= oldest_value["size"]
-                logger.debug(f"Evicted {oldest_key} from cache")
+                logger.debug("Evicted %s from cache", oldest_key)
 
             # Add new entry
             self._cache[key] = {
@@ -110,7 +110,7 @@ class ImageCache:
                 size = self._cache[key]["size"]
                 self.current_memory_bytes -= size
                 del self._cache[key]
-                logger.debug(f"Removed {key} from cache")
+                logger.debug("Removed %s from cache", key)
                 return True
             return False
 
@@ -155,8 +155,8 @@ class ImageCache:
             while self.current_memory_bytes > self.max_memory_bytes and self._cache:
                 oldest_key, oldest_value = self._cache.popitem(last=False)
                 self.current_memory_bytes -= oldest_value["size"]
-                logger.debug(f"Evicted {oldest_key} due to new memory limit")
-            logger.info(f"Cache memory limit updated to {max_memory_mb}MB")
+                logger.debug("Evicted %s due to new memory limit", oldest_key)
+            logger.info("Cache memory limit updated to %dMB", max_memory_mb)
 
     def __len__(self):
         """Return number of cached images."""
