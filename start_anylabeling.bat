@@ -150,7 +150,7 @@ echo.
 
 REM Check and build Cython extensions
 echo [Cython Extensions]
-python -c "import os; import sys; pyd_files = [f for f in os.listdir('anylabeling/extensions') if f.endswith('.pyd')] if os.path.exists('anylabeling/extensions') else []; sys.exit(0 if pyd_files else 1)" 2>nul
+python -c "import os; import sys; pyd_files = []; exec('try: pyd_files = [f for f in os.listdir(\"anylabeling/extensions\") if f.endswith(\".pyd\")]\nexcept: pass'); sys.exit(int(not pyd_files))" 2>nul
 if errorlevel 1 (
     echo Cython extensions not found. Attempting to build...
     
@@ -190,7 +190,7 @@ echo.
 REM Check and build Rust extensions
 echo [Rust Extensions]
 REM Try to import and check RUST_AVAILABLE flag (any import error means extensions not available)
-python -c "from anylabeling.rust_extensions import RUST_AVAILABLE; import sys; sys.exit(0 if RUST_AVAILABLE else 1)" 2>nul
+python -c "from anylabeling.rust_extensions import RUST_AVAILABLE; import sys; sys.exit(int(not RUST_AVAILABLE))" 2>nul
 if errorlevel 1 (
     echo Rust extensions not found. Checking for Rust toolchain...
     
