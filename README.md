@@ -82,6 +82,8 @@ Centralized performance configuration dialog:
 
 For maximum performance, install optional extensions:
 
+> **Note for Windows users:** If you're using `start_anylabeling.bat`, the script automatically attempts to build these extensions on first run. You only need to follow these manual instructions if you're using a different setup method or need to troubleshoot.
+
 #### Cython Extensions (10-50x speedup)
 
 ```bash
