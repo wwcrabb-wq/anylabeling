@@ -189,59 +189,64 @@ echo.
 :check_rust
 REM Check and build Rust extensions
 echo [Rust Extensions]
-REM Try to import and check RUST_AVAILABLE flag (any import error means extensions not available)
+
+REM Check if Rust extensions already available
 python -c "from anylabeling.rust_extensions import RUST_AVAILABLE; import sys; sys.exit(int(not RUST_AVAILABLE))" 2>nul
+if not errorlevel 1 goto rust_already_available
+
+echo Rust extensions not found. Checking for Rust toolchain...
+
+REM Check if rustc is available
+rustc --version >nul 2>&1
+if errorlevel 1 goto rust_not_installed
+
+echo Rust toolchain found. Attempting to build...
+
+REM Install maturin if needed
+python -c "import maturin" 2>nul
+if not errorlevel 1 goto maturin_ready
+echo Installing maturin...
+pip install --quiet maturin
+if errorlevel 1 goto maturin_failed
+
+:maturin_ready
+if not exist "anylabeling\rust_extensions" goto rust_dir_missing
+echo Building Rust extensions (this may take a few minutes)...
+pushd anylabeling\rust_extensions
+maturin develop --release --quiet 2>nul
 if errorlevel 1 (
-    echo Rust extensions not found. Checking for Rust toolchain...
-    
-    REM Check if rustc is available
-    rustc --version >nul 2>&1
-    if errorlevel 1 (
-        echo Rust toolchain not found. Skipping Rust extensions.
-        echo.
-        echo To enable Rust extensions:
-        echo   1. Install Rust from https://rustup.rs/
-        echo   2. Restart your terminal
-        echo   3. Re-run this script
-        echo.
-        echo The application will still work with Python fallback implementations.
-    ) else (
-        echo Rust toolchain found. Attempting to build...
-        
-        REM Check if maturin is installed
-        python -c "import maturin" 2>nul
-        if errorlevel 1 (
-            echo Installing maturin...
-            pip install --quiet maturin
-            if errorlevel 1 (
-                echo Warning: Failed to install maturin. Skipping Rust extensions.
-                echo.
-            )
-        )
-        
-        REM Only attempt build if maturin was installed and directory exists
-        python -c "import maturin" 2>nul
-        if not errorlevel 1 (
-            if exist "anylabeling\rust_extensions" (
-                REM Build Rust extensions
-                echo Building Rust extensions (this may take a few minutes)...
-                pushd anylabeling\rust_extensions
-                maturin develop --release --quiet 2>nul
-                if errorlevel 1 (
-                    echo Warning: Rust extension build failed.
-                    echo The application will still work with Python fallback implementations.
-                ) else (
-                    echo Success: Rust extensions built successfully!
-                )
-                popd
-            ) else (
-                echo Warning: Rust extensions directory not found. Skipping build.
-            )
-        )
-    )
+    echo Warning: Rust extension build failed.
+    echo The application will still work with Python fallback implementations.
 ) else (
-    echo Rust extensions already available. Skipping build.
+    echo Success: Rust extensions built successfully!
 )
+popd
+goto rust_done
+
+:rust_already_available
+echo Rust extensions already available. Skipping build.
+goto rust_done
+
+:rust_not_installed
+echo Rust toolchain not found. Skipping Rust extensions.
+echo.
+echo To enable Rust extensions:
+echo   1. Install Rust from https://rustup.rs/
+echo   2. Restart your terminal
+echo   3. Re-run this script
+echo.
+echo The application will still work with Python fallback implementations.
+goto rust_done
+
+:maturin_failed
+echo Warning: Failed to install maturin. Skipping Rust extensions.
+goto rust_done
+
+:rust_dir_missing
+echo Warning: Rust extensions directory not found. Skipping build.
+goto rust_done
+
+:rust_done
 echo.
 echo ========================================
 
