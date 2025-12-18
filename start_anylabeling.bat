@@ -19,14 +19,14 @@ REM Check if venv already exists
 if exist "venv\Scripts\python.exe" (
     echo Virtual environment found. Activating...
     call venv\Scripts\activate.bat
-    goto run_app
+    goto check_extensions
 )
 
 REM Check for .venv as alternative
 if exist ".venv\Scripts\python.exe" (
     echo Virtual environment found. Activating...
     call .venv\Scripts\activate.bat
-    goto run_app
+    goto check_extensions
 )
 
 REM No venv found, create one
@@ -140,6 +140,97 @@ if errorlevel 1 (
 echo.
 echo Installation complete!
 echo.
+
+:check_extensions
+REM ============================================================
+REM Build Optional Performance Extensions
+REM ============================================================
+echo Checking for optional performance extensions...
+echo.
+
+REM Check and build Cython extensions
+echo [Cython Extensions]
+python -c "import os; import sys; pyd_files = [f for f in os.listdir('anylabeling/extensions') if f.endswith('.pyd')]; sys.exit(0 if pyd_files else 1)" 2>nul
+if errorlevel 1 (
+    echo Cython extensions not found. Attempting to build...
+    
+    REM Check if cython and numpy are installed
+    python -c "import cython; import numpy" 2>nul
+    if errorlevel 1 (
+        echo Installing build dependencies: cython and numpy...
+        pip install --quiet cython numpy
+        if errorlevel 1 (
+            echo Warning: Failed to install cython/numpy. Skipping Cython extensions.
+            goto check_rust
+        )
+    )
+    
+    REM Attempt to build Cython extensions
+    echo Building Cython extensions...
+    python anylabeling/extensions/setup_extensions.py build_ext --inplace 2>nul
+    if errorlevel 1 (
+        echo Warning: Cython extension build failed.
+        echo Note: On Windows, this requires Microsoft Visual C++ Build Tools.
+        echo Download from: https://visualstudio.microsoft.com/downloads/
+        echo.
+        echo The application will still work with Python fallback implementations.
+    ) else (
+        echo Success: Cython extensions built successfully!
+    )
+) else (
+    echo Cython extensions already built. Skipping build.
+)
+echo.
+
+:check_rust
+REM Check and build Rust extensions
+echo [Rust Extensions]
+python -c "from anylabeling.rust_extensions import RUST_AVAILABLE; import sys; sys.exit(0 if RUST_AVAILABLE else 1)" 2>nul
+if errorlevel 1 (
+    echo Rust extensions not found. Checking for Rust toolchain...
+    
+    REM Check if rustc is available
+    rustc --version >nul 2>&1
+    if errorlevel 1 (
+        echo Rust toolchain not found. Skipping Rust extensions.
+        echo.
+        echo To enable Rust extensions:
+        echo   1. Install Rust from https://rustup.rs/
+        echo   2. Restart your terminal
+        echo   3. Re-run this script
+        echo.
+        echo The application will still work with Python fallback implementations.
+    ) else (
+        echo Rust toolchain found. Attempting to build...
+        
+        REM Check if maturin is installed
+        python -c "import maturin" 2>nul
+        if errorlevel 1 (
+            echo Installing maturin...
+            pip install --quiet maturin
+            if errorlevel 1 (
+                echo Warning: Failed to install maturin. Skipping Rust extensions.
+                goto run_app
+            )
+        )
+        
+        REM Build Rust extensions
+        echo Building Rust extensions (this may take a few minutes)...
+        cd anylabeling\rust_extensions
+        maturin develop --release --quiet 2>nul
+        if errorlevel 1 (
+            echo Warning: Rust extension build failed.
+            echo The application will still work with Python fallback implementations.
+        ) else (
+            echo Success: Rust extensions built successfully!
+        )
+        cd ..\..
+    )
+) else (
+    echo Rust extensions already available. Skipping build.
+)
+echo.
+echo ========================================
 
 :run_app
 echo ========================================
