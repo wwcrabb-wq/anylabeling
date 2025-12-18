@@ -94,12 +94,15 @@ cdef double point_line_distance(
     """
     cdef double dx = x2 - x1
     cdef double dy = y2 - y1
+    cdef double t
+    cdef double closest_x
+    cdef double closest_y
     
     if dx == 0 and dy == 0:
         # Line segment is a point
         return sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1))
     
-    cdef double t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+    t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
     
     if t < 0:
         # Closest point is start of segment
@@ -109,8 +112,8 @@ cdef double point_line_distance(
         return sqrt((px - x2) * (px - x2) + (py - y2) * (py - y2))
     else:
         # Closest point is on the segment
-        cdef double closest_x = x1 + t * dx
-        cdef double closest_y = y1 + t * dy
+        closest_x = x1 + t * dx
+        closest_y = y1 + t * dy
         return sqrt((px - closest_x) * (px - closest_x) + (py - closest_y) * (py - closest_y))
 
 
@@ -132,19 +135,25 @@ cpdef cnp.ndarray[DTYPE_t, ndim=2] simplify_polygon(
         Simplified polygon as Mx2 array (M <= N)
     """
     cdef int n = polygon.shape[0]
-    if n < 3:
-        return polygon
-    
-    # Find the point with maximum distance from line start-end
     cdef double max_dist = 0.0
     cdef int max_index = 0
     cdef int i
     cdef double dist
+    cdef double x1
+    cdef double y1
+    cdef double x2
+    cdef double y2
+    cdef cnp.ndarray[DTYPE_t, ndim=2] left
+    cdef cnp.ndarray[DTYPE_t, ndim=2] right
     
-    cdef double x1 = polygon[0, 0]
-    cdef double y1 = polygon[0, 1]
-    cdef double x2 = polygon[n-1, 0]
-    cdef double y2 = polygon[n-1, 1]
+    if n < 3:
+        return polygon
+    
+    # Find the point with maximum distance from line start-end
+    x1 = polygon[0, 0]
+    y1 = polygon[0, 1]
+    x2 = polygon[n-1, 0]
+    y2 = polygon[n-1, 1]
     
     for i in range(1, n - 1):
         dist = point_line_distance(
