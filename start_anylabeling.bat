@@ -225,7 +225,7 @@ if errorlevel 1 (
             if exist "anylabeling\rust_extensions" (
                 REM Build Rust extensions
                 echo Building Rust extensions (this may take a few minutes)...
-                cd anylabeling\rust_extensions
+                pushd anylabeling\rust_extensions
                 maturin develop --release --quiet 2>nul
                 if errorlevel 1 (
                     echo Warning: Rust extension build failed.
@@ -233,7 +233,7 @@ if errorlevel 1 (
                 ) else (
                     echo Success: Rust extensions built successfully!
                 )
-                cd ..\..
+                popd
             ) else (
                 echo Warning: Rust extensions directory not found. Skipping build.
             )
