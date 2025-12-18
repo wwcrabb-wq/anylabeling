@@ -12,6 +12,8 @@ AnyLabeling includes three types of optional extensions:
 
 All extensions are **optional** and AnyLabeling works perfectly without them. Build only the extensions relevant to your use case.
 
+> **Note for Windows users:** The `start_anylabeling.bat` script automatically attempts to build Cython and Rust extensions on first run if they are not already present. You can use this guide for manual builds or troubleshooting.
+
 ---
 
 ## Cython Extensions
