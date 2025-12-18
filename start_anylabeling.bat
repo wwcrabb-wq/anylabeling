@@ -150,7 +150,7 @@ echo.
 
 REM Check and build Cython extensions
 echo [Cython Extensions]
-python -c "import os; import sys; pyd_files = [f for f in os.listdir('anylabeling/extensions') if f.endswith('.pyd')]; sys.exit(0 if pyd_files else 1)" 2>nul
+python -c "import os; import sys; pyd_files = [f for f in os.listdir('anylabeling/extensions') if f.endswith('.pyd')] if os.path.exists('anylabeling/extensions') else []; sys.exit(0 if pyd_files else 1)" 2>nul
 if errorlevel 1 (
     echo Cython extensions not found. Attempting to build...
     
@@ -161,21 +161,25 @@ if errorlevel 1 (
         pip install --quiet cython numpy
         if errorlevel 1 (
             echo Warning: Failed to install cython/numpy. Skipping Cython extensions.
-            goto check_rust
+            echo.
         )
     )
     
-    REM Attempt to build Cython extensions
-    echo Building Cython extensions...
-    python anylabeling/extensions/setup_extensions.py build_ext --inplace 2>nul
-    if errorlevel 1 (
-        echo Warning: Cython extension build failed.
-        echo Note: On Windows, this requires Microsoft Visual C++ Build Tools.
-        echo Download from: https://visualstudio.microsoft.com/downloads/
-        echo.
-        echo The application will still work with Python fallback implementations.
-    ) else (
-        echo Success: Cython extensions built successfully!
+    REM Only attempt build if dependencies were installed successfully
+    python -c "import cython; import numpy" 2>nul
+    if not errorlevel 1 (
+        REM Attempt to build Cython extensions
+        echo Building Cython extensions...
+        python anylabeling/extensions/setup_extensions.py build_ext --inplace 2>nul
+        if errorlevel 1 (
+            echo Warning: Cython extension build failed.
+            echo Note: On Windows, this requires Microsoft Visual C++ Build Tools.
+            echo Download from: https://visualstudio.microsoft.com/downloads/
+            echo.
+            echo The application will still work with Python fallback implementations.
+        ) else (
+            echo Success: Cython extensions built successfully!
+        )
     )
 ) else (
     echo Cython extensions already built. Skipping build.
@@ -185,6 +189,7 @@ echo.
 :check_rust
 REM Check and build Rust extensions
 echo [Rust Extensions]
+REM Try to import and check RUST_AVAILABLE flag (any import error means extensions not available)
 python -c "from anylabeling.rust_extensions import RUST_AVAILABLE; import sys; sys.exit(0 if RUST_AVAILABLE else 1)" 2>nul
 if errorlevel 1 (
     echo Rust extensions not found. Checking for Rust toolchain...
@@ -210,21 +215,29 @@ if errorlevel 1 (
             pip install --quiet maturin
             if errorlevel 1 (
                 echo Warning: Failed to install maturin. Skipping Rust extensions.
-                goto run_app
+                echo.
             )
         )
         
-        REM Build Rust extensions
-        echo Building Rust extensions (this may take a few minutes)...
-        cd anylabeling\rust_extensions
-        maturin develop --release --quiet 2>nul
-        if errorlevel 1 (
-            echo Warning: Rust extension build failed.
-            echo The application will still work with Python fallback implementations.
-        ) else (
-            echo Success: Rust extensions built successfully!
+        REM Only attempt build if maturin was installed and directory exists
+        python -c "import maturin" 2>nul
+        if not errorlevel 1 (
+            if exist "anylabeling\rust_extensions" (
+                REM Build Rust extensions
+                echo Building Rust extensions (this may take a few minutes)...
+                cd anylabeling\rust_extensions
+                maturin develop --release --quiet 2>nul
+                if errorlevel 1 (
+                    echo Warning: Rust extension build failed.
+                    echo The application will still work with Python fallback implementations.
+                ) else (
+                    echo Success: Rust extensions built successfully!
+                )
+                cd ..\..
+            ) else (
+                echo Warning: Rust extensions directory not found. Skipping build.
+            )
         )
-        cd ..\..
     )
 ) else (
     echo Rust extensions already available. Skipping build.
