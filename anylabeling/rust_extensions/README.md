@@ -83,7 +83,36 @@ If Rust extensions are not built or fail to import, the module automatically fal
 
 ## Troubleshooting
 
-### Build Errors
+### Automated Build (Windows Batch Script)
+
+The `start_anylabeling.bat` script now includes enhanced error handling for Rust extensions:
+
+**Checks performed before building**:
+1. Verifies Rust toolchain is installed
+2. Checks for required files (Cargo.toml, lib.rs)
+3. Detects available linkers (link.exe or lld.exe)
+4. Displays detailed error messages with actionable steps
+
+**If build fails**, the script will:
+- Display the full build output for debugging
+- Provide specific troubleshooting steps
+- Continue with Python fallback implementations
+
+**Common error messages and solutions**:
+
+**Warning**: `No linker detected in PATH (link.exe or lld.exe)`
+- Install "Desktop development with C++" from Visual Studio, or
+- Install "Build Tools for Visual Studio" from https://visualstudio.microsoft.com/downloads/
+
+**Warning**: `Cargo.toml not found in anylabeling\rust_extensions\`
+- Ensure you have the complete source code (not just the Python package)
+- Re-clone the repository if files are missing
+
+**Warning**: `lib.rs not found in anylabeling\rust_extensions\src\`
+- Ensure you have the complete source code
+- Check that the repository is not corrupted
+
+### Manual Build Errors
 
 **Problem**: `error: linker 'cc' not found`
 **Solution**: Install build tools
@@ -100,6 +129,16 @@ xcode-select --install
 
 **Problem**: `error: could not find 'Cargo.toml'`
 **Solution**: Make sure you're in the `anylabeling/rust_extensions` directory
+
+**Problem**: `Couldn't find a virtualenv or conda environment`
+**Solution**: Activate your virtual environment before running `maturin develop`:
+```bash
+# Windows
+venv\Scripts\activate.bat
+
+# Linux/macOS
+source venv/bin/activate
+```
 
 **Problem**: `ImportError: cannot import name 'anylabeling_rust'`
 **Solution**: Rebuild extensions with `maturin develop --release`
