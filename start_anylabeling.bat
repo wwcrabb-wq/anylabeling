@@ -177,7 +177,22 @@ REM Try to find vcvarsall.bat for various Visual Studio versions
 set "VCVARSALL_FOUND="
 set "VS_INSTALL_DIR="
 
-REM Check Visual Studio 2022
+REM Try using vswhere.exe for more robust Visual Studio detection (if available)
+set "VSWHERE_PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE_PATH%" (
+    echo Using vswhere.exe for Visual Studio detection...
+    for /f "usebackq tokens=*" %%i in (`"%VSWHERE_PATH%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+        set "VS_INSTALL_DIR=%%i"
+    )
+    if defined VS_INSTALL_DIR (
+        if exist "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" (
+            set "VCVARSALL_FOUND=1"
+            goto vcvarsall_detected
+        )
+    )
+)
+
+REM Fallback: Check Visual Studio 2022 at common locations
 if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
     set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
     set "VCVARSALL_FOUND=1"
@@ -198,8 +213,13 @@ if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\
     set "VCVARSALL_FOUND=1"
     goto vcvarsall_detected
 )
+if exist "C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files\Microsoft Visual Studio\2022\Preview"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
 
-REM Check Visual Studio 2019
+REM Fallback: Check Visual Studio 2019
 if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
     set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools"
     set "VCVARSALL_FOUND=1"
@@ -221,7 +241,7 @@ if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxi
     goto vcvarsall_detected
 )
 
-REM Check Visual Studio 2017
+REM Fallback: Check Visual Studio 2017
 if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
     set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools"
     set "VCVARSALL_FOUND=1"
@@ -251,15 +271,21 @@ if defined VCVARSALL_FOUND (
     echo Setting up 64-bit compiler environment...
     
     REM Call vcvarsall.bat to set up the compiler environment for x64
-    REM This will configure PATH and other environment variables correctly
-    call "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>&1
+    REM Capture error output separately for better diagnostics
+    set "VCVARS_ERROR_FILE=%TEMP%\vcvars_error_%RANDOM%.log"
+    call "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>"%VCVARS_ERROR_FILE%"
     
-    if not errorlevel 1 (
-        echo Visual C++ 64-bit compiler environment configured successfully.
+    if errorlevel 1 (
+        echo Warning: Failed to configure Visual C++ environment.
+        echo Error details:
+        type "%VCVARS_ERROR_FILE%"
+        del "%VCVARS_ERROR_FILE%" >nul 2>&1
+        echo.
+        echo This may cause Cython extension build failures.
         echo.
     ) else (
-        echo Warning: Failed to configure Visual C++ environment.
-        echo This may cause Cython extension build failures.
+        del "%VCVARS_ERROR_FILE%" >nul 2>&1
+        echo Visual C++ 64-bit compiler environment configured successfully.
         echo.
     )
 ) else (
@@ -364,12 +390,23 @@ if errorlevel 1 (
         REM Check if cl.exe is available in PATH
         where cl.exe >nul 2>&1
         if not errorlevel 1 (
-            REM Capture cl.exe output to check for x64 architecture
+            REM Capture cl.exe output once to check architecture
             echo Checking cl.exe architecture...
-            cl.exe 2>&1 | findstr /i "x64" >nul 2>&1
-            if errorlevel 1 (
+            set "CL_TEMP_FILE=%TEMP%\cl_output_%RANDOM%.log"
+            cl.exe 2>"%CL_TEMP_FILE%" >nul
+            
+            REM Check for x64 architecture
+            findstr /i "x64" "%CL_TEMP_FILE%" >nul 2>&1
+            if not errorlevel 1 (
+                echo Compiler architecture: 64-bit (x64) - Compatible!
+                for /f "tokens=*" %%i in ('where cl.exe') do (
+                    echo Using cl.exe from: %%i
+                )
+                del "%CL_TEMP_FILE%" >nul 2>&1
+                echo.
+            ) else (
                 REM Check for x86 architecture (32-bit) - this is a problem
-                cl.exe 2>&1 | findstr /i "x86" >nul 2>&1
+                findstr /i "x86" "%CL_TEMP_FILE%" >nul 2>&1
                 if not errorlevel 1 (
                     echo.
                     echo ============================================================
@@ -393,14 +430,15 @@ if errorlevel 1 (
                     echo The application will still work with Python fallback implementations.
                     echo ============================================================
                     echo.
+                    del "%CL_TEMP_FILE%" >nul 2>&1
                     goto skip_cython_build
+                ) else (
+                    REM Unknown architecture
+                    echo Warning: Could not determine compiler architecture.
+                    echo Build may fail if compiler architecture doesn't match Python.
+                    del "%CL_TEMP_FILE%" >nul 2>&1
+                    echo.
                 )
-            ) else (
-                echo Compiler architecture: 64-bit (x64) - Compatible!
-                for /f "tokens=*" %%i in ('where cl.exe') do (
-                    echo Using cl.exe from: %%i
-                )
-                echo.
             )
         ) else (
             echo Warning: cl.exe not found in PATH.
