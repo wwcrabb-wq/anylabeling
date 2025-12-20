@@ -272,7 +272,7 @@ if defined VCVARSALL_FOUND (
     
     REM Call vcvarsall.bat to set up the compiler environment for x64
     REM Capture error output separately for better diagnostics
-    set "VCVARS_ERROR_FILE=%TEMP%\vcvars_error_%RANDOM%.log"
+    set "VCVARS_ERROR_FILE=%TEMP%\vcvars_error_%RANDOM%_%TIME:~-5,2%%TIME:~-2%.log"
     call "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>"%VCVARS_ERROR_FILE%"
     
     if errorlevel 1 (
@@ -392,7 +392,7 @@ if errorlevel 1 (
         if not errorlevel 1 (
             REM Capture cl.exe output once to check architecture
             echo Checking cl.exe architecture...
-            set "CL_TEMP_FILE=%TEMP%\cl_output_%RANDOM%.log"
+            set "CL_TEMP_FILE=%TEMP%\cl_output_%RANDOM%_%TIME:~-5,2%%TIME:~-2%.log"
             cl.exe 2>"%CL_TEMP_FILE%" >nul
             
             REM Check for x64 architecture
