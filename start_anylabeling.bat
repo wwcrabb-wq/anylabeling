@@ -184,8 +184,7 @@ if exist "%VSWHERE_PATH%" (
     echo Using vswhere.exe for Visual Studio detection...
     setlocal enabledelayedexpansion
     for /f "usebackq tokens=*" %%i in (`"!VSWHERE_PATH!" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
-        endlocal
-        set "VS_INSTALL_DIR=%%i"
+        endlocal & set "VS_INSTALL_DIR=%%i"
         goto :vswhere_done
     )
     endlocal
