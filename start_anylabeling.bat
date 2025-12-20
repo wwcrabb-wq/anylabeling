@@ -217,19 +217,21 @@ if not exist "anylabeling\rust_extensions\Cargo.toml" goto rust_cargo_missing
 if not exist "anylabeling\rust_extensions\src\lib.rs" goto rust_lib_missing
 
 REM Check for Windows linker (helps diagnose link errors)
+set LINKER_FOUND=0
 where link.exe >nul 2>&1
-if errorlevel 1 (
-    where lld.exe >nul 2>&1
-    if errorlevel 1 (
-        echo Warning: No linker detected in PATH ^(link.exe or lld.exe^).
-        echo This may cause build failures on Windows.
-        echo.
-        echo To fix:
-        echo   1. Install "Desktop development with C++" workload from Visual Studio
-        echo   2. Or install "Build Tools for Visual Studio" from:
-        echo      https://visualstudio.microsoft.com/downloads/
-        echo.
-    )
+if not errorlevel 1 set LINKER_FOUND=1
+where lld.exe >nul 2>&1
+if not errorlevel 1 set LINKER_FOUND=1
+
+if %LINKER_FOUND%==0 (
+    echo Warning: No linker detected in PATH ^(link.exe or lld.exe^).
+    echo This may cause build failures on Windows.
+    echo.
+    echo To fix:
+    echo   1. Install "Desktop development with C++" workload from Visual Studio
+    echo   2. Or install "Build Tools for Visual Studio" from:
+    echo      https://visualstudio.microsoft.com/downloads/
+    echo.
 )
 
 echo Building Rust extensions (this may take a few minutes)...
@@ -259,11 +261,11 @@ if errorlevel 1 (
     echo.
     echo The application will still work with Python fallback implementations.
     echo ============================================================
-    del "%TEMP_LOG%" >nul 2>&1
 ) else (
     echo Success: Rust extensions built successfully!
-    del "%TEMP_LOG%" >nul 2>&1
 )
+REM Clean up temporary log file
+del "%TEMP_LOG%" >nul 2>&1
 popd
 goto rust_done
 
