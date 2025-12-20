@@ -39,6 +39,8 @@ xcode-select --install
 
 **Windows:**
 - Install [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/downloads/)
+  - The `start_anylabeling.bat` script automatically detects and configures the 64-bit compiler if Visual Studio Build Tools are installed
+  - Ensures correct architecture matching (64-bit compiler for 64-bit Python) to prevent linker errors
 - Or install [MinGW-w64](https://www.mingw-w64.org/)
 
 ### Building
@@ -69,7 +71,15 @@ else:
 ### Troubleshooting
 
 **Problem:** `error: Microsoft Visual C++ 14.0 or greater is required`
-**Solution:** Install Visual Studio Build Tools on Windows
+**Solution:** Install Visual Studio Build Tools on Windows. The `start_anylabeling.bat` script will automatically detect and configure it.
+
+**Problem:** `LNK1120: unresolved externals` or architecture mismatch errors
+**Solution:** This occurs when using 32-bit `cl.exe` with 64-bit Python. The `start_anylabeling.bat` script now automatically:
+- Detects Visual Studio Build Tools installation
+- Configures the 64-bit compiler environment (x64)
+- Verifies compiler architecture matches Python architecture
+- Prevents build attempts with mismatched architectures
+If you're building manually, ensure you use the 64-bit compiler (path should contain `HostX64\x64`).
 
 **Problem:** `fatal error: Python.h: No such file or directory`
 **Solution:** Install python3-dev package:
@@ -262,12 +272,14 @@ sudo reboot
 ### Windows
 
 **Cython:** Requires Visual Studio Build Tools or MinGW
+- The `start_anylabeling.bat` script automatically detects and configures Visual Studio Build Tools (2017/2019/2022)
+- Enforces 64-bit compiler to match 64-bit Python and prevent linker errors
 **Rust:** Works well with MSVC
 **TensorRT:** Supported with CUDA
 
 **Tips:**
 - Use PowerShell with admin rights
-- Add Python and compilers to PATH
+- Add Python and compilers to PATH (automated by `start_anylabeling.bat`)
 - Visual Studio 2019 or later recommended
 
 ---
