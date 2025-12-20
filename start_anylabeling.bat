@@ -184,10 +184,12 @@ set "VSWHERE_PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.
 if exist "!VSWHERE_PATH!" (
     echo Using vswhere.exe for Visual Studio detection...
     for /f "usebackq tokens=*" %%i in (`"!VSWHERE_PATH!" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+        endlocal
         set "VS_INSTALL_DIR=%%i"
+        setlocal enabledelayedexpansion
     )
 )
-endlocal & set "VS_INSTALL_DIR=%VS_INSTALL_DIR%"
+endlocal
 if defined VS_INSTALL_DIR (
     if exist "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" (
         set "VCVARSALL_FOUND=1"
