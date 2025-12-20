@@ -186,10 +186,11 @@ if exist "!VSWHERE_PATH!" (
     for /f "usebackq tokens=*" %%i in (`"!VSWHERE_PATH!" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
         endlocal
         set "VS_INSTALL_DIR=%%i"
-        setlocal enabledelayedexpansion
+        goto :vswhere_done
     )
 )
 endlocal
+:vswhere_done
 if defined VS_INSTALL_DIR (
     if exist "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" (
         set "VCVARSALL_FOUND=1"
