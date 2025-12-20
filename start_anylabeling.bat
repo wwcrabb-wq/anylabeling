@@ -178,17 +178,20 @@ set "VCVARSALL_FOUND="
 set "VS_INSTALL_DIR="
 
 REM Try using vswhere.exe for more robust Visual Studio detection (if available)
+REM Use delayed expansion to properly handle paths with spaces and parentheses
+setlocal enabledelayedexpansion
 set "VSWHERE_PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
-if exist "%VSWHERE_PATH%" (
+if exist "!VSWHERE_PATH!" (
     echo Using vswhere.exe for Visual Studio detection...
-    for /f "usebackq tokens=*" %%i in (`"%VSWHERE_PATH%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+    for /f "usebackq tokens=*" %%i in (`"!VSWHERE_PATH!" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
         set "VS_INSTALL_DIR=%%i"
     )
-    if defined VS_INSTALL_DIR (
-        if exist "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" (
-            set "VCVARSALL_FOUND=1"
-            goto vcvarsall_detected
-        )
+)
+endlocal & set "VS_INSTALL_DIR=%VS_INSTALL_DIR%"
+if defined VS_INSTALL_DIR (
+    if exist "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" (
+        set "VCVARSALL_FOUND=1"
+        goto vcvarsall_detected
     )
 )
 
