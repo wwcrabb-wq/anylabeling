@@ -211,15 +211,61 @@ if errorlevel 1 goto maturin_failed
 
 :maturin_ready
 if not exist "anylabeling\rust_extensions" goto rust_dir_missing
+
+REM Validate required Rust files exist
+if not exist "anylabeling\rust_extensions\Cargo.toml" goto rust_cargo_missing
+if not exist "anylabeling\rust_extensions\src\lib.rs" goto rust_lib_missing
+
+REM Check for Windows linker (helps diagnose link errors)
+set LINKER_FOUND=0
+where link.exe >nul 2>&1
+if not errorlevel 1 set LINKER_FOUND=1
+where lld.exe >nul 2>&1
+if not errorlevel 1 set LINKER_FOUND=1
+
+if %LINKER_FOUND%==0 (
+    echo Warning: No linker detected in PATH ^(link.exe or lld.exe^).
+    echo This may cause build failures on Windows.
+    echo.
+    echo To fix:
+    echo   1. Install "Desktop development with C++" workload from Visual Studio
+    echo   2. Or install "Build Tools for Visual Studio" from:
+    echo      https://visualstudio.microsoft.com/downloads/
+    echo.
+)
+
 echo Building Rust extensions (this may take a few minutes)...
 pushd anylabeling\rust_extensions
-maturin develop --release --quiet 2>nul
+
+REM Capture build output to temporary file for better error reporting
+set TEMP_LOG=%TEMP%\rust_build_%RANDOM%.log
+maturin develop --release > "%TEMP_LOG%" 2>&1
 if errorlevel 1 (
-    echo Warning: Rust extension build failed.
+    echo.
+    echo ============================================================
+    echo ERROR: Rust extension build failed
+    echo ============================================================
+    echo.
+    echo Build output:
+    type "%TEMP_LOG%"
+    echo.
+    echo ============================================================
+    echo Troubleshooting:
+    echo   1. Ensure you have Visual C++ Build Tools installed
+    echo   2. Try running: rustup update
+    echo   3. Check if Cargo.lock has conflicts
+    echo   4. Try: cargo clean (in rust_extensions directory)
+    echo   5. For detailed logs, run manually:
+    echo      cd anylabeling\rust_extensions
+    echo      maturin develop --release
+    echo.
     echo The application will still work with Python fallback implementations.
+    echo ============================================================
 ) else (
     echo Success: Rust extensions built successfully!
 )
+REM Clean up temporary log file
+del "%TEMP_LOG%" >nul 2>&1
 popd
 goto rust_done
 
@@ -244,6 +290,20 @@ goto rust_done
 
 :rust_dir_missing
 echo Warning: Rust extensions directory not found. Skipping build.
+goto rust_done
+
+:rust_cargo_missing
+echo Warning: Cargo.toml not found in anylabeling\rust_extensions\.
+echo Cannot build Rust extensions without Cargo.toml.
+echo.
+echo Expected location: anylabeling\rust_extensions\Cargo.toml
+goto rust_done
+
+:rust_lib_missing
+echo Warning: lib.rs not found in anylabeling\rust_extensions\src\.
+echo Cannot build Rust extensions without lib.rs.
+echo.
+echo Expected location: anylabeling\rust_extensions\src\lib.rs
 goto rust_done
 
 :rust_done

@@ -4,6 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "anylabeling_rust"
+version = "0.1.0"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
@@ -13,5 +14,4 @@ classifiers = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-python-source = "python"
 module-name = "anylabeling.rust_extensions.anylabeling_rust"
