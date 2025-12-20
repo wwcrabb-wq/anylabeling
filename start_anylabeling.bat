@@ -18,6 +18,23 @@ cd /d "%PROJECT_ROOT%"
 REM Check if venv already exists
 if exist "venv\Scripts\python.exe" (
     echo Virtual environment found. Activating...
+    
+    REM Check for environment conflicts before activating
+    if defined CONDA_PREFIX if not defined VIRTUAL_ENV (
+        echo.
+        echo ============================================================
+        echo WARNING: Detected CONDA_PREFIX while activating venv
+        echo ============================================================
+        echo.
+        echo A Conda environment is currently active.
+        echo This can cause conflicts when building Rust extensions with maturin.
+        echo.
+        echo Deactivating Conda environment to avoid conflicts...
+        call conda deactivate
+        echo Conda environment deactivated.
+        echo.
+    )
+    
     call venv\Scripts\activate.bat
     goto check_extensions
 )
@@ -25,6 +42,23 @@ if exist "venv\Scripts\python.exe" (
 REM Check for .venv as alternative
 if exist ".venv\Scripts\python.exe" (
     echo Virtual environment found. Activating...
+    
+    REM Check for environment conflicts before activating
+    if defined CONDA_PREFIX if not defined VIRTUAL_ENV (
+        echo.
+        echo ============================================================
+        echo WARNING: Detected CONDA_PREFIX while activating venv
+        echo ============================================================
+        echo.
+        echo A Conda environment is currently active.
+        echo This can cause conflicts when building Rust extensions with maturin.
+        echo.
+        echo Deactivating Conda environment to avoid conflicts...
+        call conda deactivate
+        echo Conda environment deactivated.
+        echo.
+    )
+    
     call .venv\Scripts\activate.bat
     goto check_extensions
 )
@@ -106,6 +140,34 @@ echo Found compatible Python version:
 %PYTHON_CMD% --version
 echo.
 
+REM ============================================================
+REM Check Python Architecture (64-bit required)
+REM ============================================================
+echo Checking Python architecture...
+%PYTHON_CMD% -c "import platform; print(platform.architecture()[0])" | findstr "64bit" >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ============================================================
+    echo ERROR: Detected 32-bit Python installation.
+    echo ============================================================
+    echo.
+    echo This application requires a 64-bit Python installation.
+    echo 32-bit Python can cause build failures, especially for Cython
+    echo extensions that require matching architecture with Visual C++
+    echo Build Tools.
+    echo.
+    echo Please install 64-bit Python from:
+    echo https://www.python.org/downloads/
+    echo.
+    echo Make sure to select the "x86-64" or "64-bit" installer.
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+echo Python architecture: 64-bit (OK)
+echo.
+
 REM Create virtual environment
 echo Creating virtual environment...
 %PYTHON_CMD% -m venv venv
@@ -118,6 +180,26 @@ if errorlevel 1 (
 
 REM Activate the virtual environment
 echo Activating virtual environment...
+
+REM ============================================================
+REM Check for Environment Conflicts (VIRTUAL_ENV vs CONDA_PREFIX)
+REM ============================================================
+if defined CONDA_PREFIX if defined VIRTUAL_ENV (
+    echo.
+    echo ============================================================
+    echo WARNING: Detected both VIRTUAL_ENV and CONDA_PREFIX
+    echo ============================================================
+    echo.
+    echo Both a virtual environment and Conda environment are active.
+    echo This can cause conflicts when building Rust extensions with maturin,
+    echo which requires only one environment to be active.
+    echo.
+    echo Deactivating Conda environment to avoid conflicts...
+    call conda deactivate
+    echo Conda environment deactivated.
+    echo.
+)
+
 call venv\Scripts\activate.bat
 
 REM Upgrade pip
@@ -211,6 +293,21 @@ if errorlevel 1 goto maturin_failed
 
 :maturin_ready
 if not exist "anylabeling\rust_extensions" goto rust_dir_missing
+
+REM Check for environment conflicts before building Rust extensions
+if defined CONDA_PREFIX if defined VIRTUAL_ENV (
+    echo.
+    echo ============================================================
+    echo WARNING: Environment conflict detected before Rust build
+    echo ============================================================
+    echo.
+    echo Both VIRTUAL_ENV and CONDA_PREFIX are set.
+    echo This can cause maturin build failures.
+    echo.
+    echo Attempting to deactivate Conda environment...
+    call conda deactivate
+    echo.
+)
 
 REM Validate required Rust files exist
 if not exist "anylabeling\rust_extensions\Cargo.toml" goto rust_cargo_missing
