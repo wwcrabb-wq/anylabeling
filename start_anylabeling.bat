@@ -168,6 +168,111 @@ if errorlevel 1 (
 echo Python architecture: 64-bit (OK)
 echo.
 
+REM ============================================================
+REM Detect and Set Visual C++ Compiler Path (64-bit)
+REM ============================================================
+echo Detecting Visual C++ Build Tools...
+
+REM Try to find vcvarsall.bat for various Visual Studio versions
+set "VCVARSALL_FOUND="
+set "VS_INSTALL_DIR="
+
+REM Check Visual Studio 2022
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files\Microsoft Visual Studio\2022\Community"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files\Microsoft Visual Studio\2022\Professional"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+
+REM Check Visual Studio 2019
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+
+REM Check Visual Studio 2017
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\Community"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VS_INSTALL_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise"
+    set "VCVARSALL_FOUND=1"
+    goto vcvarsall_detected
+)
+
+:vcvarsall_detected
+if defined VCVARSALL_FOUND (
+    echo Found Visual Studio Build Tools at:
+    echo   %VS_INSTALL_DIR%
+    echo.
+    echo Setting up 64-bit compiler environment...
+    
+    REM Call vcvarsall.bat to set up the compiler environment for x64
+    REM This will configure PATH and other environment variables correctly
+    call "%VS_INSTALL_DIR%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>&1
+    
+    if not errorlevel 1 (
+        echo Visual C++ 64-bit compiler environment configured successfully.
+        echo.
+    ) else (
+        echo Warning: Failed to configure Visual C++ environment.
+        echo This may cause Cython extension build failures.
+        echo.
+    )
+) else (
+    echo Visual Studio Build Tools not found at common installation paths.
+    echo.
+    echo Note: Cython extension builds require Visual C++ Build Tools.
+    echo If you encounter build errors later, install from:
+    echo   https://visualstudio.microsoft.com/downloads/
+    echo.
+    echo Continuing with current environment...
+    echo.
+)
+
 REM Create virtual environment
 echo Creating virtual environment...
 %PYTHON_CMD% -m venv venv
@@ -244,12 +349,65 @@ if errorlevel 1 (
         if errorlevel 1 (
             echo Warning: Failed to install cython/numpy. Skipping Cython extensions.
             echo.
+            goto skip_cython_build
         )
     )
     
     REM Only attempt build if dependencies were installed successfully
     python -c "import cython; import numpy" 2>nul
     if not errorlevel 1 (
+        REM ============================================================
+        REM Verify Compiler Architecture Before Building
+        REM ============================================================
+        echo Verifying compiler architecture compatibility...
+        
+        REM Check if cl.exe is available in PATH
+        where cl.exe >nul 2>&1
+        if not errorlevel 1 (
+            REM Capture cl.exe output to check for x64 architecture
+            echo Checking cl.exe architecture...
+            cl.exe 2>&1 | findstr /i "x64" >nul 2>&1
+            if errorlevel 1 (
+                REM Check for x86 architecture (32-bit) - this is a problem
+                cl.exe 2>&1 | findstr /i "x86" >nul 2>&1
+                if not errorlevel 1 (
+                    echo.
+                    echo ============================================================
+                    echo ERROR: Compiler architecture mismatch detected
+                    echo ============================================================
+                    echo.
+                    echo The cl.exe compiler in PATH is 32-bit (x86), but Python is 64-bit.
+                    echo This will cause linker errors (LNK1120) during Cython builds.
+                    echo.
+                    for /f "tokens=*" %%i in ('where cl.exe') do (
+                        echo Current cl.exe location: %%i
+                    )
+                    echo.
+                    echo To fix this issue:
+                    echo   1. Install Visual C++ Build Tools (64-bit) from:
+                    echo      https://visualstudio.microsoft.com/downloads/
+                    echo   2. Make sure the 64-bit compiler path comes first in PATH
+                    echo   3. The expected path pattern should contain: HostX64\x64
+                    echo.
+                    echo Skipping Cython build to avoid errors.
+                    echo The application will still work with Python fallback implementations.
+                    echo ============================================================
+                    echo.
+                    goto skip_cython_build
+                )
+            ) else (
+                echo Compiler architecture: 64-bit (x64) - Compatible!
+                for /f "tokens=*" %%i in ('where cl.exe') do (
+                    echo Using cl.exe from: %%i
+                )
+                echo.
+            )
+        ) else (
+            echo Warning: cl.exe not found in PATH.
+            echo Attempting to build anyway - may fail on Windows without Visual C++ Build Tools.
+            echo.
+        )
+        
         REM Attempt to build Cython extensions
         echo Building Cython extensions...
         python anylabeling/extensions/setup_extensions.py build_ext --inplace 2>nul
@@ -266,6 +424,8 @@ if errorlevel 1 (
 ) else (
     echo Cython extensions already built. Skipping build.
 )
+
+:skip_cython_build
 echo.
 
 :check_rust
